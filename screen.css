@@ -2,7 +2,7 @@
 @media (prefers-color-scheme:dark){:root{--bg:#11151b;--card:#1a2028;--ink:#e6ebf2;--muted:#9aa5b5;--line:#2f3844;--accent:#ef5350;--accent2:#64b5f6;--pos:#ff5252;--neg:#d0d8dc;--ok:#66bb6a;--warn:#ffa726;--room:#1f2731;--dev:#252d38;--devline:#8793a5;--lcd:#0d1a10;--lcdink:#9ff09a;--on:#4cd964}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;font-size:14px}
-#fasim{max-width:1400px;margin:0 auto;padding:12px}
+#fasim{max-width:1500px;margin:0 auto;padding:12px}
 .top{display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;background:var(--card);border:1px solid var(--line);border-left:6px solid var(--accent);border-radius:10px;padding:10px 16px}
 .top h1{font-size:20px;margin:0}
 .top .sub{margin:2px 0 0;color:var(--muted);font-size:13px}
@@ -27,9 +27,10 @@ button.primary{background:var(--accent2);border-color:var(--accent2);color:#fff;
 .seg button.on{background:var(--accent2)!important;color:#fff}
 select,input[type=number]{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 6px;font-family:inherit;font-size:13px}
 :focus-visible{outline:3px solid #ffb300;outline-offset:2px}
-.wgrid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:10px}
-@media (max-width:980px){.wgrid{grid-template-columns:1fr}}
-.stagewrap{position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px}
+.wgrid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:10px}
+@media (max-width:1100px){.wgrid{grid-template-columns:1fr}}
+.stagewrap{position:relative;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px;min-width:0}
+.svgwrap{overflow:auto;max-height:84vh;border-radius:6px}
 #stage{width:100%;height:auto;display:block;user-select:none}
 .hint{min-height:22px;color:var(--muted);font-size:13px;padding:4px 6px}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);padding:0 6px 4px}
@@ -73,11 +74,11 @@ select,input[type=number]{background:var(--card);color:var(--ink);border:1px sol
 .term.sel{stroke:#ffb300;stroke-width:5}
 .term.used{opacity:.85}
 .tl{font:700 9px sans-serif;fill:#fff;pointer-events:none}
-.wire{fill:none;stroke-width:3.4;stroke-linecap:round;pointer-events:none}
+.wire{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
 .wire.p{stroke:var(--pos)}.wire.n{stroke:var(--neg)}.wire.x{stroke:#8d6e63}
 .wire.open{stroke-dasharray:7 7;opacity:.55}
-.whit{fill:none;stroke:transparent;stroke-width:14;cursor:pointer}
-g.wg:hover .wire,g.wg:focus .wire{stroke-width:6}
+.whit{fill:none;stroke:transparent;stroke-width:12;cursor:pointer}
+g.wg:hover .wire,g.wg:focus .wire{stroke-width:5.5}
 g.wg:focus{outline:none}
 .openx{fill:#ffb300;font:900 18px sans-serif;pointer-events:none}
 .badge{cursor:pointer}
@@ -102,7 +103,6 @@ g.wg:focus{outline:none}
 .glow{fill:#fff;opacity:0;pointer-events:none}
 #stage.strobeon .item.strobing .glow{opacity:.95;filter:drop-shadow(0 0 8px #fff) drop-shadow(0 0 16px #fff59d)}
 #stage.strobeon .item.strobing .dbox{fill:#fffde7}
-.door{transition:transform .8s ease}
 .stat{font:700 9px "Segoe UI",sans-serif}
 .stat.bad{fill:var(--accent)}.stat.good{fill:var(--ok)}.stat.warn{fill:var(--warn)}
 .alist{border-collapse:collapse;width:100%;font-size:11.5px}
@@ -158,4 +158,24 @@ g.wg:focus{outline:none}
 .pv h2{font-size:17px;margin:14px 0 6px}
 .pv p,.pv li{line-height:1.5}
 .small{font-size:12px;color:var(--muted)}
+.hdr-r{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.savebtns{display:flex;gap:6px}
+.savebtns button{border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:6px 11px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600}
+.savebtns button:hover{border-color:var(--accent2)}
+.cardhd{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cardhd h3{margin:0}
+.cardhd button{border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:3px 9px;border-radius:6px;cursor:pointer;font-size:12px}
+#taskCard.min{padding-bottom:10px}
+#taskCard:not(.min) .cardhd{margin-bottom:6px}
+.modal{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;z-index:20;padding:12px}
+.modal .box{background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:16px 18px;width:min(560px,100%);max-height:92vh;overflow:auto}
+.modal h4{margin:0 0 8px;font-size:16px}
+.modal p{margin:6px 0;line-height:1.45;font-size:13px}
+.modal textarea{width:100%;min-height:120px;font:12px Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px;resize:vertical}
+.modal .row{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:10px}
+.modal .row button{border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:7px 12px;border-radius:7px;cursor:pointer;font-size:13px}
+.modal .row button.primary{background:var(--accent2);border-color:var(--accent2);color:#fff;font-weight:600}
+.modal .msg{font-size:12.5px;min-height:18px;margin-top:6px}
+.modal .msg.bad{color:var(--accent)}.modal .msg.good{color:var(--ok)}
+.modal .sum{font-size:12.5px;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin:6px 0}
 [hidden]{display:none!important}

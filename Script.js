@@ -1,11 +1,12 @@
 (function(){
 "use strict";
-/* Fire Alarm Wiring & Programming Simulator v5 – single file, no external resources, SCORM 1.2 aware (optional). */
+/* Fire Alarm Wiring & Programming Simulator v6 – single file, no external resources, SCORM 1.2 aware (optional). */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const pad3=n=>String(n).padStart(3,'0');
 const MINUS='−';
 const ps=p=>p==='+'?'+':MINUS;
+const PW=190;
 
 /* ---------------- Tasks / progress ---------------- */
 const TASKS=[
@@ -16,7 +17,7 @@ const TASKS=[
  ['prog4','Program: Cross-zoned pre-action release'],['prog5','Program: Full sequence of operations']
 ];
 const TABS=[['cb','Conventional Class B'],['ca','Conventional Class A'],['dclc','Addressable DCLC'],['dclb','DCLC + DCLB Tap'],['prog','Panel Programming'],['help','Progress & Help']];
-const state={tab:'cb',mode:'wire',tool:'activate',sel:null,settings:{floorIso:true},done:{},sims:{}};
+const state={tab:'cb',mode:'wire',tool:'activate',sel:null,zoom:null,settings:{floorIso:true,taskMin:false},done:{},sims:{}};
 
 /* ---------------- SCORM 1.2 (optional) ---------------- */
 const SCORM={api:null,
@@ -34,7 +35,7 @@ const SCORM={api:null,
       this.api.LMSCommit('')}catch(e){}},
   finish(){if(!this.api)return;try{this.api.LMSCommit('');this.api.LMSFinish('')}catch(e){}}
 };
-const LS='fasim.v5';
+const LS='fasim.v6';
 function loadLocal(){try{const o=JSON.parse(localStorage.getItem(LS)||'{}');if(o.done)Object.assign(state.done,o.done);if(o.settings)Object.assign(state.settings,o.settings)}catch(e){}}
 function saveLocal(){try{localStorage.setItem(LS,JSON.stringify({done:state.done,settings:state.settings}))}catch(e){}}
 function markDone(key){
@@ -51,85 +52,160 @@ function updateProgress(){
 let toastT=0;function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),2600)}
 
 /* ---------------- Item factories ---------------- */
-function stdTerms(w){return[
-  {id:'in+',pol:'+',dx:0,dy:40,side:'l',name:'+IN'},{id:'in-',pol:'-',dx:0,dy:64,side:'l',name:MINUS+'IN'},
-  {id:'out+',pol:'+',dx:w,dy:40,side:'r',name:'+OUT'},{id:'out-',pol:'-',dx:w,dy:64,side:'r',name:MINUS+'OUT'}]}
-function mkDev(id,kind,desc,x,y,o={}){const w=o.w||132;return{id,type:'dev',kind,desc,x,y,w,h:80,group:o.group||'loop',zone:o.zone||null,addressable:!!o.addressable,sup:!!o.sup,monOf:o.monOf||null,terms:stdTerms(w)}}
-function mkMM(id,desc,x,y,o,mon){const it=mkDev(id,'MM',desc,x,y,o);it.mon=mon;
+/* flip = IN terminals on the right, OUT on the left (used for rows that run right-to-left) */
+function stdTerms(w,flip){const iX=flip?w:0,oX=flip?0:w,iS=flip?'r':'l',oS=flip?'l':'r';return[
+  {id:'in+',pol:'+',dx:iX,dy:40,side:iS,name:'+IN'},{id:'in-',pol:'-',dx:iX,dy:64,side:iS,name:MINUS+'IN'},
+  {id:'out+',pol:'+',dx:oX,dy:40,side:oS,name:'+OUT'},{id:'out-',pol:'-',dx:oX,dy:64,side:oS,name:MINUS+'OUT'}]}
+function mkDev(id,kind,desc,x,y,o={}){const w=o.w||132;return{id,type:'dev',kind,desc,x,y,w,h:80,flip:!!o.flip,group:o.group||'loop',zone:o.zone||null,addressable:!!o.addressable,sup:!!o.sup,monOf:o.monOf||null,terms:stdTerms(w,o.flip)}}
+function mkMM(id,desc,x,y,o,mon){const it=mkDev(id,'MM',desc,x,y,o);it.mon=mon;it.btm=true;
   it.terms.push({id:'m+',pol:'+',dx:48,dy:80,side:'b',name:'IDC +',role:'mon'},{id:'m-',pol:'-',dx:84,dy:80,side:'b',name:'IDC '+MINUS,role:'mon'});return it}
-function mkRM(id,x,y,o){const it=mkDev(id,'RM','Relay Module (Form C)',x,y,o);
+function mkRM(id,x,y,o){const it=mkDev(id,'RM','Relay Module (Form C)',x,y,o);it.btm=true;
   it.terms.push({id:'COM',pol:'*',dx:30,dy:80,side:'b',name:'COM',role:'rly'},{id:'NC',pol:'*',dx:66,dy:80,side:'b',name:'NC',role:'rly'},{id:'NO',pol:'*',dx:102,dy:80,side:'b',name:'NO',role:'rly'});return it}
-function mkBT(id,x,y,mm,zone){return{id,type:'ser',kind:'BT',desc:'Box Tamper Sw.',x,y,w:78,h:56,group:'mon',monOf:mm,zone,
-  terms:[{id:'s1',pol:'*',dx:0,dy:28,side:'l',name:'T1'},{id:'s2',pol:'*',dx:78,dy:28,side:'r',name:'T2'}]}}
-function mkDH(id,x,y){return{id,type:'dh',kind:'DH',desc:'Door Holder 24VDC',x,y,w:104,h:72,group:'dh',
+function mkBT(id,x,y,mm,zone){return{id,type:'ser',kind:'BT',desc:'Box Tamper Sw.',x,y,w:84,h:56,group:'mon',monOf:mm,zone,
+  terms:[{id:'s1',pol:'*',dx:0,dy:28,side:'l',name:'T1'},{id:'s2',pol:'*',dx:84,dy:28,side:'r',name:'T2'}]}}
+function mkDH(id,x,y){return{id,type:'dh',kind:'DH',desc:'Door Holder 24VDC',x,y,w:110,h:76,group:'dh',
   terms:[{id:'d+',pol:'+',dx:0,dy:26,side:'l',name:'DH +'},{id:'d-',pol:'-',dx:0,dy:50,side:'l',name:'DH '+MINUS}]}}
-function mkIso(id,x,y){return{id,type:'iso',kind:'ISO',desc:'Fault Isolator Module',x,y,w:132,h:80,group:'loop',terms:stdTerms(132)}}
+function mkIso(id,x,y,flip){return{id,type:'iso',kind:'ISO',desc:'Fault Isolator Module',x,y,w:132,h:80,flip:!!flip,group:'loop',terms:stdTerms(132,flip)}}
 function mkTB(id,x,y){const it={id,type:'tb',kind:'TB',desc:'T-Tap Junction (DCLB)',x,y,w:132,h:80,group:'loop',zone:'TAP',terms:stdTerms(132)};
   it.terms.push({id:'t+',pol:'+',dx:48,dy:0,side:'t',name:'+TAP',role:'tap'},{id:'t-',pol:'-',dx:84,dy:0,side:'t',name:MINUS+'TAP',role:'tap'});return it}
 function mkEOL(id,x,y,desc,cls){return{id,type:'eol',kind:'EOL',desc,cls,x,y,w:100,h:58,terms:[{id:'r1',pol:'*',dx:0,dy:20,side:'l',name:'EOL-1'},{id:'r2',pol:'*',dx:0,dy:42,side:'l',name:'EOL-2'}]}}
-function mkPanel(x,y,h,sub,terms){return{id:'P',type:'panel',kind:'FACP',desc:'FACP',sub,x,y,w:178,h,terms}}
-const slcTerms=(o,r)=>[{id:'B+',pol:'+',dx:178,dy:o,side:'r',name:'SLC OUT +'},{id:'B-',pol:'-',dx:178,dy:o+30,side:'r',name:'SLC OUT '+MINUS},
-  {id:'A+',pol:'+',dx:178,dy:r,side:'r',name:'SLC RET +'},{id:'A-',pol:'-',dx:178,dy:r+30,side:'r',name:'SLC RET '+MINUS}];
-const auxTerms=dy=>[{id:'X+',pol:'+',dx:178,dy,side:'r',name:'AUX 24VDC +'},{id:'X-',pol:'-',dx:178,dy:dy+30,side:'r',name:'AUX 24VDC '+MINUS}];
-function nacTerms(cls,dy){const b=[{id:'N+',pol:'+',dx:178,dy,side:'r',name:cls==='A'?'NAC B+ (OUT)':'NAC 1 +'},{id:'N-',pol:'-',dx:178,dy:dy+30,side:'r',name:cls==='A'?'NAC B'+MINUS+' (OUT)':'NAC 1 '+MINUS}];
-  if(cls==='A')b.push({id:'NR+',pol:'+',dx:178,dy:dy+70,side:'r',name:'NAC A+ (RET)'},{id:'NR-',pol:'-',dx:178,dy:dy+100,side:'r',name:'NAC A'+MINUS+' (RET)'});return b}
-function addNAC(items,x,y,cls){items.push(mkDev('HS-1','HS','Horn / Strobe',x,y,{group:'nac'}),mkDev('H-1','HN','Horn (audible only)',x+220,y,{group:'nac'}),mkEOL('NEOL',x+450,y+10,'NAC EOL Resistor',cls))}
+function mkPanel(x,y,h,sub,terms){return{id:'P',type:'panel',kind:'FACP',desc:'FACP',sub,x,y,w:PW,h,terms}}
+const T2=(id,dy,name,pol)=>({id,pol,dx:PW,dy,side:'r',name});
+const auxTerms=dy=>[T2('X+',dy,'AUX 24VDC +','+'),T2('X-',dy+30,'AUX 24VDC '+MINUS,'-')];
+function nacTerms(cls,dy){const b=[T2('N+',dy,cls==='A'?'NAC B+ (OUT)':'NAC 1 +','+'),T2('N-',dy+30,cls==='A'?'NAC B'+MINUS+' (OUT)':'NAC 1 '+MINUS,'-')];
+  if(cls==='A')b.push(T2('NR+',dy+70,'NAC A+ (RET)','+'),T2('NR-',dy+100,'NAC A'+MINUS+' (RET)','-'));return b}
+function addNAC(items,x,y,cls){items.push(mkDev('HS-1','HS','Horn / Strobe',x,y,{group:'nac'}),mkDev('H-1','HN','Horn (audible only)',x+260,y,{group:'nac'}),mkEOL('NEOL',x+530,y+10,'NAC EOL Resistor',cls))}
 
 /* ---------------- Scenario builders ---------------- */
 function buildConv(cls){
-  const zt=(n,dy)=>{const t=[{id:n+'B+',pol:'+',dx:178,dy,side:'r',name:cls==='A'?`Z${n} B+ (OUT)`:`ZONE ${n} +`},{id:n+'B-',pol:'-',dx:178,dy:dy+30,side:'r',name:cls==='A'?`Z${n} B${MINUS} (OUT)`:`ZONE ${n} ${MINUS}`}];
-    if(cls==='A')t.push({id:n+'A+',pol:'+',dx:178,dy:dy+60,side:'r',name:`Z${n} A+ (RET)`},{id:n+'A-',pol:'-',dx:178,dy:dy+90,side:'r',name:`Z${n} A${MINUS} (RET)`});return t};
-  const terms=zt(1,70).concat(zt(2,cls==='A'?210:200),nacTerms(cls,400));
-  const items=[mkPanel(20,190,560,`Conventional • Class ${cls}`,terms)];
-  items.push(mkDev('PS-1','PS','Manual Pull Station',300,90,{zone:'Z1'}),mkDev('SD-1','SD','2-Wire Smoke Det.',560,90,{zone:'Z1'}),mkEOL('EOL1',830,100,'Zone 1 EOL Resistor',cls),
-    mkDev('HD-1','HD','Heat Detector',300,390,{zone:'Z2'}),mkDev('SD-2','SD','2-Wire Smoke Det.',560,390,{zone:'Z2'}),mkEOL('EOL2',830,400,'Zone 2 EOL Resistor',cls));
-  addNAC(items,420,650,cls);
-  return{key:cls==='B'?'cb':'ca',kind:'conv',cls,nacCls:cls,items,vh:800,
+  const zt=(n,dy)=>{const t=[T2(n+'B+',dy,cls==='A'?`Z${n} B+ (OUT)`:`ZONE ${n} +`,'+'),T2(n+'B-',dy+30,cls==='A'?`Z${n} B${MINUS} (OUT)`:`ZONE ${n} ${MINUS}`,'-')];
+    if(cls==='A')t.push(T2(n+'A+',dy+60,`Z${n} A+ (RET)`,'+'),T2(n+'A-',dy+90,`Z${n} A${MINUS} (RET)`,'-'));return t};
+  const terms=zt(1,70).concat(zt(2,cls==='A'?250:240),nacTerms(cls,460));
+  const items=[mkPanel(20,150,640,`Conventional • Class ${cls}`,terms)];
+  items.push(mkDev('PS-1','PS','Manual Pull Station',330,90,{zone:'Z1'}),mkDev('SD-1','SD','2-Wire Smoke Det.',620,90,{zone:'Z1'}),mkEOL('EOL1',910,100,'Zone 1 EOL Resistor',cls),
+    mkDev('HD-1','HD','Heat Detector',330,400,{zone:'Z2'}),mkDev('SD-2','SD','2-Wire Smoke Det.',620,400,{zone:'Z2'}),mkEOL('EOL2',910,410,'Zone 2 EOL Resistor',cls));
+  addNAC(items,380,680,cls);
+  return{key:cls==='B'?'cb':'ca',kind:'conv',cls,nacCls:cls,items,vw:1120,vh:820,
     zones:[{n:1,z:'Z1',members:['PS-1','SD-1']},{n:2,z:'Z2',members:['HD-1','SD-2']}],zoneNames:{Z1:'Zone 1',Z2:'Zone 2'},
-    rooms:[{x:240,y:30,w:785,h:250,l:'FIRE ZONE 1 – MAIN ENTRANCE / OFFICE'},{x:240,y:295,w:785,h:300,l:'FIRE ZONE 2 – WAREHOUSE'},{x:10,y:150,w:220,h:640,l:'ELECTRICAL RM'},{x:240,y:610,w:785,h:180,l:'CORRIDOR – NAC 1'}]};
+    rooms:[{x:240,y:20,w:870,h:270,l:'FIRE ZONE 1 – MAIN ENTRANCE / OFFICE'},{x:240,y:305,w:870,h:300,l:'FIRE ZONE 2 – WAREHOUSE'},{x:10,y:130,w:220,h:680,l:'ELECTRICAL RM'},{x:240,y:620,w:870,h:190,l:'CORRIDOR – NAC 1'}]};
 }
 function buildDCLC(){
-  const items=[mkPanel(20,300,520,'Addressable • DCLC + NAC 1',slcTerms(140,60).concat(nacTerms('B',340),auxTerms(440)))];
-  const z1={addressable:true,zone:'Z1'},z2={addressable:true,zone:'Z2'};
+  const terms=[T2('A+',80,'SLC RET +','+'),T2('A-',110,'SLC RET '+MINUS,'-'),T2('B+',370,'SLC OUT +','+'),T2('B-',400,'SLC OUT '+MINUS,'-')].concat(nacTerms('B',640),auxTerms(740));
+  const items=[mkPanel(20,160,830,'Addressable • DCLC + NAC 1',terms)];
+  const z1={addressable:true,zone:'Z1'},z2={addressable:true,zone:'Z2',flip:true};
   items.push(
-    mkIso('ISO-1',222,400),mkIso('ISO-2',860,215),mkIso('ISO-3',700,215),mkIso('ISO-4',222,215),
-    mkDev('PS-1','PS','Manual Pull Station',380,400,z1),mkDev('SD-1','SD','Smoke Detector',540,400,z1),
-    mkDev('SD-2','SD','Smoke Detector',700,400,z1),mkMM('MM-1','Waterflow Monitor Mod.',860,400,z1,{eol:'MEOL1',sw:'FS-1',bt:'BT-1'}),
-    mkMM('MM-2','Tamper Monitor Mod.',380,50,{...z2,sup:true},{eol:'MEOL2',sw:'TS-1',bt:'BT-2'}),mkDev('HD-1','HD','Heat Detector',540,50,z2),
-    mkDev('SD-4','SD','Smoke Detector',700,50,z2),mkDev('SD-3','SD','Smoke Detector',860,50,z2),
-    mkDev('TS-1','TS','Valve Tamper Switch',378,215,{group:'mon',zone:'Z2',monOf:'MM-2',w:120}),mkBT('BT-2',510,227,'MM-2','Z2'),mkEOL('MEOL2',594,226,'MM-2 EOL Resistor','B'),
-    mkRM('RM-1',385,515,z1),mkDH('DH-1',535,520),
-    mkDev('FS-1','FS','Waterflow Alarm Switch',652,515,{group:'mon',zone:'Z1',monOf:'MM-1',w:126}),mkBT('BT-1',800,527,'MM-1','Z1'),mkEOL('MEOL1',905,526,'MM-1 EOL Resistor','B'));
-  addNAC(items,450,735,'B');
-  return{key:'dclc',kind:'addr',cls:'A',nacCls:'B',items,vh:880,zoneNames:{Z1:'Zone 1 (Floor 1)',Z2:'Zone 2 (Floor 2)'},interZone:2,
+    /* Zone 2 – Floor 2 (row runs right-to-left) */
+    mkIso('ISO-4',250,60,true),mkMM('MM-2','Tamper Monitor Mod.',430,60,{...z2,sup:true},{eol:'MEOL2',sw:'TS-1',bt:'BT-2'}),
+    mkDev('HD-1','HD','Heat Detector',610,60,z2),mkDev('SD-4','SD','Smoke Detector',790,60,z2),mkDev('SD-3','SD','Smoke Detector',970,60,z2),
+    /* sprinkler valve room */
+    mkDev('TS-1','TS','Valve Tamper Switch',430,240,{group:'mon',zone:'Z2',monOf:'MM-2',w:126}),mkBT('BT-2',620,252,'MM-2','Z2'),mkEOL('MEOL2',770,251,'MM-2 EOL Resistor','B'),
+    /* riser */
+    mkIso('ISO-3',1330,220,true),mkIso('ISO-2',1330,490),
+    /* Zone 1 – Floor 1 */
+    mkIso('ISO-1',250,490),mkDev('PS-1','PS','Manual Pull Station',430,490,z1),mkRM('RM-1',610,490,z1),
+    mkDev('SD-1','SD','Smoke Detector',790,490,z1),mkDev('SD-2','SD','Smoke Detector',970,490,z1),
+    mkMM('MM-1','Waterflow Monitor Mod.',1150,490,z1,{eol:'MEOL1',sw:'FS-1',bt:'BT-1'}),
+    mkDH('DH-1',740,650),
+    mkDev('FS-1','FS','Waterflow Alarm Switch',900,660,{group:'mon',zone:'Z1',monOf:'MM-1',w:126}),mkBT('BT-1',1080,672,'MM-1','Z1'),mkEOL('MEOL1',1220,671,'MM-1 EOL Resistor','B'));
+  addNAC(items,430,860,'B');
+  return{key:'dclc',kind:'addr',cls:'A',nacCls:'B',items,vw:1480,vh:1030,zoneNames:{Z1:'Zone 1 (Floor 1)',Z2:'Zone 2 (Floor 2)'},interZone:2,
     points:[{a:1,k:'PS',tag:'PS-1',loc:'Zone 1 – Floor 1'},{a:2,k:'SD',tag:'SD-1',loc:'Zone 1 – Floor 1'},{a:3,k:'SD',tag:'SD-2',loc:'Zone 1 – Floor 1'},{a:4,k:'MM',tag:'MM-1',loc:'Zone 1 – Sprinkler Waterflow (FS-1)'},{a:5,k:'RM',tag:'RM-1',loc:'Zone 1 – Door Holder Release (DH-1)'},
             {a:21,k:'SD',tag:'SD-3',loc:'Zone 2 – Floor 2'},{a:22,k:'SD',tag:'SD-4',loc:'Zone 2 – Floor 2'},{a:23,k:'HD',tag:'HD-1',loc:'Zone 2 – Floor 2'},{a:24,k:'MM',tag:'MM-2',loc:'Zone 2 – Sprinkler Valve Tamper (TS-1)'}],
-    rooms:[{x:370,y:15,w:660,h:165,l:'ZONE 2 – FLOOR 2'},{x:370,y:190,w:660,h:120,l:'RISER – SPRINKLER VALVE'},{x:370,y:320,w:660,h:365,l:'ZONE 1 – FLOOR 1'},{x:10,y:190,w:355,h:680,l:'ELECTRICAL RM'},{x:370,y:695,w:660,h:175,l:'NAC 1 – FLOOR 1 CORRIDOR'}]};
+    rooms:[{x:230,y:20,w:1065,h:170,l:'ZONE 2 – FLOOR 2'},{x:230,y:200,w:1065,h:170,l:'SPRINKLER VALVE ROOM'},{x:1305,y:20,w:165,h:640,l:'RISER'},
+           {x:230,y:385,w:1065,h:425,l:'ZONE 1 – FLOOR 1'},{x:10,y:140,w:210,h:880,l:'ELECTRICAL RM'},{x:230,y:825,w:1240,h:195,l:'NAC 1 – FLOOR 1 CORRIDOR'}]};
 }
 function buildDCLB(){
-  const items=[mkPanel(20,230,580,'Addressable • DCLC + DCLB + NAC 1',slcTerms(60,240).concat(nacTerms('B',410),auxTerms(510)))];
-  const z1={addressable:true,zone:'Z1'},z2={addressable:true,zone:'Z2'},b={addressable:true,group:'B1',zone:'S101'};
+  const terms=[T2('B+',140,'SLC OUT +','+'),T2('B-',170,'SLC OUT '+MINUS,'-'),T2('A+',360,'SLC RET +','+'),T2('A-',390,'SLC RET '+MINUS,'-')].concat(nacTerms('B',640),auxTerms(740));
+  const items=[mkPanel(20,160,830,'Addressable • DCLC + DCLB + NAC 1',terms)];
+  const z1={addressable:true,zone:'Z1'},z2={addressable:true,zone:'Z2',flip:true},b={addressable:true,group:'B1',zone:'S101'};
   items.push(
-    mkIso('ISO-1',222,250),mkDev('PS-1','PS','Manual Pull Station',380,250,z1),mkDev('SD-1','SD','Smoke Detector',540,250,z1),
-    mkIso('ISO-2',700,250),mkTB('TB-1',860,250),
-    mkIso('ISO-4',222,410),mkDev('HD-2','HD','Heat Detector',380,410,z2),mkMM('MM-1','Waterflow Monitor Mod.',540,410,z2,{eol:'MEOL1',sw:'FS-1',bt:'BT-1'}),
-    mkDev('SD-2','SD','Smoke Detector',700,410,z2),mkIso('ISO-3',860,410),
-    mkRM('RM-1',385,515,z2),mkDH('DH-1',535,520),
-    mkDev('FS-1','FS','Waterflow Alarm Switch',652,515,{group:'mon',zone:'Z2',monOf:'MM-1',w:126}),mkBT('BT-1',800,527,'MM-1','Z2'),mkEOL('MEOL1',905,526,'MM-1 EOL Resistor','B'),
-    mkDev('SD-11','SD','Smoke Detector',420,60,b),mkDev('SD-12','SD','Smoke Detector',620,60,b),mkDev('HD-11','HD','Heat Detector',820,60,b));
-  addNAC(items,450,735,'B');
-  return{key:'dclb',kind:'addr',cls:'A',nacCls:'B',taps:true,items,vh:880,zoneNames:{Z1:'Zone 1 (West Corridor)',Z2:'Zone 2 (East Corridor)',S101:'Suite 101',TAP:'the T-tap junction (TB-1)'},interZone:2,
+    /* Suite 101 – DCLB branch */
+    mkDev('SD-11','SD','Smoke Detector',430,60,b),mkDev('SD-12','SD','Smoke Detector',650,60,b),mkDev('HD-11','HD','Heat Detector',870,60,b),
+    /* Zone 1 */
+    mkIso('ISO-1',250,260),mkDev('PS-1','PS','Manual Pull Station',430,260,z1),mkDev('SD-1','SD','Smoke Detector',610,260,z1),
+    mkIso('ISO-2',790,260),mkTB('TB-1',970,260),mkIso('ISO-3',1150,260),
+    /* Zone 2 (row runs right-to-left) */
+    mkMM('MM-1','Waterflow Monitor Mod.',1150,480,z2,{eol:'MEOL1',sw:'FS-1',bt:'BT-1'}),mkDev('SD-2','SD','Smoke Detector',970,480,z2),
+    mkDev('HD-2','HD','Heat Detector',790,480,z2),mkRM('RM-1',610,480,z2),mkIso('ISO-4',250,480,true),
+    mkDH('DH-1',740,640),
+    mkDev('FS-1','FS','Waterflow Alarm Switch',900,650,{group:'mon',zone:'Z2',monOf:'MM-1',w:126}),mkBT('BT-1',1080,662,'MM-1','Z2'),mkEOL('MEOL1',1220,661,'MM-1 EOL Resistor','B'));
+  addNAC(items,430,860,'B');
+  return{key:'dclb',kind:'addr',cls:'A',nacCls:'B',taps:true,items,vw:1480,vh:1030,zoneNames:{Z1:'Zone 1 (West Corridor)',Z2:'Zone 2 (East Corridor)',S101:'Suite 101',TAP:'the T-tap junction (TB-1)'},interZone:2,
     points:[{a:1,k:'PS',tag:'PS-1',loc:'Zone 1 – West Corridor'},{a:2,k:'SD',tag:'SD-1',loc:'Zone 1 – West Corridor'},
             {a:21,k:'HD',tag:'HD-2',loc:'Zone 2 – East Corridor'},{a:22,k:'MM',tag:'MM-1',loc:'Zone 2 – Sprinkler Waterflow (FS-1)'},{a:23,k:'SD',tag:'SD-2',loc:'Zone 2 – East Corridor'},{a:24,k:'RM',tag:'RM-1',loc:'Zone 2 – Door Holder Release (DH-1)'},
             {a:41,k:'SD',tag:'SD-11',loc:'Suite 101 (DCLB)'},{a:42,k:'SD',tag:'SD-12',loc:'Suite 101 (DCLB)'},{a:43,k:'HD',tag:'HD-11',loc:'Suite 101 (DCLB)'}],
-    rooms:[{x:370,y:15,w:660,h:185,l:'SUITE 101 – DCLB BRANCH'},{x:370,y:215,w:660,h:160,l:'ZONE 1 – WEST CORRIDOR'},{x:370,y:390,w:660,h:295,l:'ZONE 2 – EAST CORRIDOR'},{x:10,y:215,w:355,h:655,l:'ELECTRICAL RM'},{x:370,y:695,w:660,h:175,l:'NAC 1 – CORRIDOR'}]};
+    rooms:[{x:230,y:20,w:1240,h:165,l:'SUITE 101 – DCLB BRANCH'},{x:230,y:200,w:1240,h:170,l:'ZONE 1 – WEST CORRIDOR'},{x:230,y:385,w:1240,h:425,l:'ZONE 2 – EAST CORRIDOR'},
+           {x:10,y:140,w:210,h:880,l:'ELECTRICAL RM'},{x:230,y:825,w:1240,h:195,l:'NAC 1 – CORRIDOR'}]};
 }
 const GROUPNAME={B1:'Suite 101'};
-function cur(){const k=state.tab;if(!state.sims[k]){let s;
+function cur(){return getSim(state.tab)}
+function getSim(k){if(!state.sims[k]){let s;
   if(k==='cb')s=buildConv('B');else if(k==='ca')s=buildConv('A');else if(k==='dclc')s=buildDCLC();else s=buildDCLB();
   s.map={};s.items.forEach(i=>s.map[i.id]=i);s.wires=[];s.seq=0;s.undo=[];s.addr={};s.shorts=new Set();s.active=new Set();s.coverOff=new Set();
   s.events=[];s.log=[];s.nacOn=false;s.silenced=false;s.zoneAlarm=new Set();s.zoneInit={};s.alarmZones=new Set();s.results=null;s.lastRelay=false;
   state.sims[k]=s}return state.sims[k]}
+
+/* ---------------- Orthogonal wire router (A* on a grid, avoids devices, prefers few bends) ---------------- */
+const GRID=12,MARG=8,LBL=14,BEND=28;
+const NV={l:[-1,0],r:[1,0],t:[0,-1],b:[0,1]};
+function inflate(it){const btmText=it.type!=='panel'?LBL:0;return[it.x-MARG,it.y-MARG-(it.btm?14:0),it.x+it.w+MARG,it.y+it.h+MARG+btmText]}
+function stubLen(side){return side==='b'?MARG+LBL+12:20}
+function termInfo(sim,tid){const{it,t}=T(sim,tid);const x=it.x+t.dx,y=it.y+t.dy;const n=NV[t.side];const L=stubLen(t.side);return{x,y,sx:x+n[0]*L,sy:y+n[1]*L,n,pol:t.pol}}
+function grid(sim){if(sim.G)return sim.G;
+  const xs=new Set(),ys=new Set();for(let x=0;x<=sim.vw;x+=GRID)xs.add(x);for(let y=0;y<=sim.vh;y+=GRID)ys.add(y);
+  const stubs=[];sim.items.forEach(it=>it.terms.forEach(t=>{const ti=termInfo(sim,it.id+'.'+t.id);xs.add(ti.sx);ys.add(ti.sy);stubs.push([it.id+'.'+t.id,ti.sx,ti.sy])}));
+  const X=[...xs].sort((a,b)=>a-b),Y=[...ys].sort((a,b)=>a-b);const NX=X.length,NY=Y.length;
+  const xi=new Map(X.map((v,i)=>[v,i])),yi=new Map(Y.map((v,i)=>[v,i]));
+  const blocked=new Uint8Array(NX*NY);const rects=sim.items.map(inflate).concat(sim.rooms.map(r=>[r.x+2,r.y+r.h-22,r.x+14+r.l.length*7.6,r.y+r.h+2]));
+  for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){const x=X[i],y=Y[j];for(const r of rects){if(x>r[0]&&x<r[2]&&y>r[1]&&y<r[3]){blocked[i+j*NX]=1;break}}}
+  const stubNode={};stubs.forEach(([tid,x,y])=>{const k=xi.get(x)+yi.get(y)*NX;stubNode[tid]=k;if(!blocked[k])blocked[k]=2});
+  sim.G={X,Y,NX,NY,xi,yi,blocked,stubNode};return sim.G}
+function occupancy(sim,G,skip){const E=new Set(),N=new Set();
+  sim.wires.forEach(w=>{if(w===skip||!w.path)return;const p=w.path;
+    for(let k=1;k<p.length-2;k++){const a=p[k],b=p[k+1];let i0=G.xi.get(a.x),j0=G.yi.get(a.y),i1=G.xi.get(b.x),j1=G.yi.get(b.y);
+      if(i0===undefined||j0===undefined||i1===undefined||j1===undefined)continue;
+      const di=Math.sign(i1-i0),dj=Math.sign(j1-j0);let i=i0,j=j0;N.add(i+j*G.NX);
+      while(i!==i1||j!==j1){const a1=i+j*G.NX;i+=di;j+=dj;const b1=i+j*G.NX;N.add(b1);E.add(a1<b1?a1*1e6+b1:b1*1e6+a1)}}});
+  return{E,N}}
+function heapPush(h,f,v){h.push([f,v]);let i=h.length-1;while(i>0){const p=(i-1)>>1;if(h[p][0]<=h[i][0])break;[h[p],h[i]]=[h[i],h[p]];i=p}}
+function heapPop(h){const top=h[0],last=h.pop();if(h.length){h[0]=last;let i=0;for(;;){const l=2*i+1,r=l+1;let m=i;if(l<h.length&&h[l][0]<h[m][0])m=l;if(r<h.length&&h[r][0]<h[m][0])m=r;if(m===i)break;[h[m],h[i]]=[h[i],h[m]];i=m}}return top}
+const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
+const dirOf=n=>n[0]===1?0:n[0]===-1?1:n[1]===1?2:3;
+function simplify(pts){const o=[];pts.forEach(p=>{const l=o[o.length-1];if(l&&l.x===p.x&&l.y===p.y)return;o.push({x:p.x,y:p.y})});
+  for(let k=o.length-2;k>0;k--){const a=o[k-1],b=o[k],c=o[k+1];if((a.x===b.x&&b.x===c.x)||(a.y===b.y&&b.y===c.y))o.splice(k,1)}return o}
+function route(sim,wire){
+  const G=grid(sim);const A=termInfo(sim,wire.a),B=termInfo(sim,wire.b);
+  const s=G.stubNode[wire.a],g=G.stubNode[wire.b];const{E,N}=occupancy(sim,G,wire);
+  const NX=G.NX,X=G.X,Y=G.Y;const tot=NX*G.NY*4;const gs=new Float64Array(tot).fill(Infinity);const prev=new Int32Array(tot).fill(-1);
+  const gx=g%NX,gy=(g/NX)|0;const H=k=>Math.abs(X[k%NX]-X[gx])+Math.abs(Y[(k/NX)|0]-Y[gy]);
+  const sd=dirOf(A.n),endDir=dirOf([-B.n[0],-B.n[1]]);const st=s*4+sd;gs[st]=0;const h=[];heapPush(h,H(s),st);let found=-1;
+  while(h.length){const[f,cs]=heapPop(h);const node=cs>>2,d=cs&3;const cg=gs[cs];if(f-H(node)>cg+1e-6)continue;
+    if(node===g){found=cs;break}
+    const i=node%NX,j=(node/NX)|0;
+    for(let nd=0;nd<4;nd++){if((d^1)===nd&&d>>1===nd>>1)continue;const ni=i+DIRS[nd][0],nj=j+DIRS[nd][1];if(ni<0||nj<0||ni>=NX||nj>=G.NY)continue;
+      const nn=ni+nj*NX;const bl=G.blocked[nn];if(bl===1||(bl===2&&nn!==g))continue;
+      const len=Math.abs(X[ni]-X[i])+Math.abs(Y[nj]-Y[j]);const ek=node<nn?node*1e6+nn:nn*1e6+node;
+      let c=len+(nd!==d?BEND:0)+(E.has(ek)?len*6+20:0)+(N.has(nn)?4:0);if(nn===g&&nd!==endDir)c+=BEND;
+      const ns=nn*4+nd;const ng=cg+c;if(ng<gs[ns]){gs[ns]=ng;prev[ns]=cs;heapPush(h,ng+H(nn),ns)}}}
+  let mid;
+  if(found<0)mid=[{x:A.sx,y:A.sy},{x:A.sx,y:B.sy},{x:B.sx,y:B.sy}];
+  else{mid=[];let c=found;while(c>=0){const nd=c>>2;mid.push({x:X[nd%NX],y:Y[(nd/NX)|0]});c=prev[c]}mid.reverse()}
+  return simplify([{x:A.x,y:A.y},{x:A.sx,y:A.sy},...mid,{x:B.sx,y:B.sy},{x:B.x,y:B.y}]);
+}
+function rerouteAll(sim){sim.wires.forEach(w=>w.path=null);sim.wires.forEach(w=>{w.path=route(sim,w)})}
+const HR=5;
+function wireGeom(sim){
+  const segs=sim.wires.map(w=>{const p=w.path||[];const s=[];for(let k=0;k<p.length-1;k++)s.push([p[k],p[k+1]]);return s});
+  return sim.wires.map((w,i)=>{const p=w.path;if(!p||!p.length)return{d:'',mid:{x:0,y:0}};let d=`M${p[0].x},${p[0].y}`;let best=null,bl=-1;
+    segs[i].forEach(([a,b])=>{const L=Math.abs(b.x-a.x)+Math.abs(b.y-a.y);if(L>bl){bl=L;best={x:(a.x+b.x)/2,y:(a.y+b.y)/2}}
+      if(a.y===b.y&&a.x!==b.x){const dir=Math.sign(b.x-a.x),lo=Math.min(a.x,b.x),hi=Math.max(a.x,b.x);const xs=[];
+        segs.forEach((S,j)=>{if(j===i)return;S.forEach(([c,e])=>{if(c.x!==e.x||c.y===e.y)return;const vlo=Math.min(c.y,e.y),vhi=Math.max(c.y,e.y);
+          if(c.x>lo+HR+1&&c.x<hi-HR-1&&a.y>vlo+0.5&&a.y<vhi-0.5)xs.push(c.x)})});
+        xs.sort((u,v)=>(u-v)*dir);let last=null;
+        xs.forEach(x=>{if(last!==null&&Math.abs(x-last)<2*HR+2)return;d+=` L${x-dir*HR},${a.y} A${HR},${HR} 0 0 ${dir>0?1:0} ${x+dir*HR},${a.y}`;last=x});
+      }
+      d+=` L${b.x},${b.y}`});
+    return{d,mid:best||p[0]}})}
 
 /* ---------------- Graph helpers ---------------- */
 const PASS_TYPES=['dev','iso','tb'];
@@ -457,11 +533,6 @@ function triggerGA(sim,why,zone){
 }
 
 /* ---------------- Rendering: stage ---------------- */
-const NV={l:[-1,0],r:[1,0],t:[0,-1],b:[0,1]};
-function tpos(sim,tid){const{it,t}=T(sim,tid);return{x:it.x+t.dx,y:it.y+t.dy,side:t.side,pol:t.pol}}
-function wirePath(a,b){const d=Math.hypot(b.x-a.x,b.y-a.y),k=Math.max(30,Math.min(130,d*.4));const na=NV[a.side],nb=NV[b.side];
-  const c1={x:a.x+na[0]*k,y:a.y+na[1]*k},c2={x:b.x+nb[0]*k,y:b.y+nb[1]*k};
-  return{d:`M${a.x},${a.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${b.x},${b.y}`,mid:{x:(a.x+3*c1.x+3*c2.x+b.x)/8,y:(a.y+3*c1.y+3*c2.y+b.y)/8}}}
 function waves(cx,cy){return`<path class="wave" d="M${cx+18},${cy-8} a10,10 0 0,1 0,16 M${cx+24},${cy-14} a17,17 0 0,1 0,28 M${cx-18},${cy-8} a10,10 0 0,0 0,16 M${cx-24},${cy-14} a17,17 0 0,0 0,28"/>`}
 function icon(it,cx,cy){
   switch(it.kind){
@@ -477,12 +548,18 @@ function icon(it,cx,cy){
     case'FS':return`<rect x="${cx-24}" y="${cy-4}" width="48" height="10" rx="5" fill="#90a4ae"/><rect x="${cx-11}" y="${cy-18}" width="22" height="16" rx="2" fill="#c62828"/><text x="${cx}" y="${cy-7}" text-anchor="middle" style="font:700 6px sans-serif;fill:#fff">FLOW</text><path d="M${cx},${cy+6} v8" stroke="#607d8b" stroke-width="2"/>`;
     case'TS':return`<circle cx="${cx-10}" cy="${cy}" r="11" fill="none" stroke="#c62828" stroke-width="3"/><path d="M${cx-21},${cy} h22 M${cx-10},${cy-11} v22" stroke="#c62828" stroke-width="2"/><rect x="${cx+3}" y="${cy-9}" width="20" height="18" rx="2" fill="#37474f"/><text x="${cx+13}" y="${cy+3}" text-anchor="middle" style="font:700 6px sans-serif;fill:#fff">TMP</text>`;
   }return''}
-function stat(it,cls,txt){return`<text class="stat ${cls}" x="${it.x+it.w/2}" y="${it.y+it.h+(it.kind==='RM'?22:12)}" text-anchor="middle">${txt}</text>`}
+/* status label: below the device, or above it for modules whose bottom edge carries terminals */
+function stat(it,cls,txt){const y=it.btm?it.y-7:it.y+it.h+12;return`<text class="stat ${cls}" x="${it.x+it.w/2}" y="${y}" text-anchor="middle">${txt}</text>`}
+function applyZoom(sim){const sv=$('#stage');if(state.zoom==null){sv.style.width='100%';sv.style.minWidth=Math.round(sim.vw*0.72)+'px'}else{sv.style.width=Math.round(sim.vw*state.zoom)+'px';sv.style.minWidth=''}}
 function renderStage(){
   const sim=cur();const test=state.mode==='test';const st=status(sim);
-  $('#stage').setAttribute('viewBox',`0 0 1040 ${sim.vh}`);
+  $('#stage').setAttribute('viewBox',`0 0 ${sim.vw} ${sim.vh}`);applyZoom(sim);
   let s='',top='';
   sim.rooms.forEach(r=>{s+=`<rect class="room" x="${r.x}" y="${r.y}" width="${r.w}" height="${r.h}" rx="6"/><text class="roomlbl" x="${r.x+8}" y="${r.y+r.h-8}">${r.l}</text>`});
+  sim.wires.forEach(w=>{if(!w.path)w.path=route(sim,w)});
+  const geo=wireGeom(sim);
+  sim.wires.forEach((w,i)=>{const a=T(sim,w.a).t,b=T(sim,w.b).t;const pol=a.pol!=='*'?a.pol:b.pol;const pc=pol==='+'?'p':pol==='-'?'n':'x';const{d,mid}=geo[i];
+    s+=`<g class="wg" data-wid="${w.id}" tabindex="0" role="button" aria-label="Conductor ${esc(tn(sim,w.a))} to ${esc(tn(sim,w.b))}"><path class="whit" d="${d}"/><path class="wire ${pc} ${w.open?'open':''}" d="${d}"/>${w.open?`<text class="openx" x="${mid.x}" y="${mid.y+6}" text-anchor="middle">✕</text>`:''}</g>`});
   sim.items.forEach(it=>{
     if(it.type==='panel'){s+=`<g class="item panel"><rect class="pbox" x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" rx="8"/>
       <text class="ptitle" x="${it.x+12}" y="${it.y+24}">FACP</text><text class="psub" x="${it.x+12}" y="${it.y+40}">${esc(it.sub)}</text>`;
@@ -498,16 +575,15 @@ function renderStage(){
       s+=`<g class="item ${test?'testable':''} ${off?'coveroff':''}" data-item="${it.id}"><rect class="dbox" x="${x}" y="${y}" width="${it.w}" height="${it.h}" rx="6"/>
         <text class="dtag" x="${x+it.w/2}" y="${y+14}" text-anchor="middle" style="font-size:11px">${it.id}</text>
         <text class="ddesc" x="${x+it.w/2}" y="${y+24}" text-anchor="middle" style="font-size:8.5px">Box Tamper Sw.</text>
-        <line x1="${x+8}" y1="${y+28}" x2="${x+24}" y2="${y+28}" stroke="var(--ink)" stroke-width="2"/><circle cx="${x+26}" cy="${y+28}" r="2.5" fill="var(--ink)"/>
-        <line x1="${x+26}" y1="${y+28}" x2="${x+50}" y2="${off?y+15:y+28}" stroke="var(--ink)" stroke-width="2.5"/><circle cx="${x+52}" cy="${y+28}" r="2.5" fill="var(--ink)"/>
-        <line x1="${x+52}" y1="${y+28}" x2="${x+70}" y2="${y+28}" stroke="var(--ink)" stroke-width="2"/>
-        <text class="dio" x="${x+it.w/2}" y="${y+46}" text-anchor="middle">${off?'COVER OFF – OPEN':'COVER ON – CLOSED'}</text>
-        </g>`;return}
+        <line x1="${x+8}" y1="${y+28}" x2="${x+28}" y2="${y+28}" stroke="var(--ink)" stroke-width="2"/><circle cx="${x+30}" cy="${y+28}" r="2.5" fill="var(--ink)"/>
+        <line x1="${x+30}" y1="${y+28}" x2="${x+54}" y2="${off?y+15:y+28}" stroke="var(--ink)" stroke-width="2.5"/><circle cx="${x+56}" cy="${y+28}" r="2.5" fill="var(--ink)"/>
+        <line x1="${x+56}" y1="${y+28}" x2="${x+76}" y2="${y+28}" stroke="var(--ink)" stroke-width="2"/>
+        <text class="dio" x="${x+it.w/2}" y="${y+46}" text-anchor="middle">${off?'COVER OFF – OPEN':'COVER ON – CLOSED'}</text></g>`;return}
     if(it.type==='dh'){const on=st.dh==='on';const x=it.x,y=it.y;const cls=['item'];if(!on)cls.push('dhoff');
-      const hx=x+92,hy=y+64;const door=on?`<line x1="${hx}" y1="${hy}" x2="${x+60}" y2="${y+34}" stroke="#8d6e63" stroke-width="6" stroke-linecap="round"/>`:`<line x1="${hx}" y1="${hy}" x2="${x+40}" y2="${hy}" stroke="#8d6e63" stroke-width="6" stroke-linecap="round"/>`;
+      const hx=x+96,hy=y+66;const door=on?`<line x1="${hx}" y1="${hy}" x2="${x+64}" y2="${y+36}" stroke="#8d6e63" stroke-width="6" stroke-linecap="round"/>`:`<line x1="${hx}" y1="${hy}" x2="${x+44}" y2="${hy}" stroke="#8d6e63" stroke-width="6" stroke-linecap="round"/>`;
       s+=`<g class="${cls.join(' ')}" data-item="${it.id}"><rect class="dbox" x="${x}" y="${y}" width="${it.w}" height="${it.h}" rx="8"/>
-        <text class="dtag" x="${x+60}" y="${y+16}" text-anchor="middle">${it.id}</text><text class="ddesc" x="${x+60}" y="${y+27}" text-anchor="middle" style="font-size:8.5px">Door Holder 24VDC</text>
-        <rect x="${x+50}" y="${y+30}" width="10" height="8" rx="1" fill="${on?'#1565c0':'#78909c'}"/>${on?`<path d="M${x+46},${y+34} h-6 M${x+46},${y+30} l-5,-3 M${x+46},${y+38} l-5,3" stroke="#1565c0" stroke-width="1.5"/>`:''}
+        <text class="dtag" x="${x+62}" y="${y+16}" text-anchor="middle">${it.id}</text><text class="ddesc" x="${x+62}" y="${y+27}" text-anchor="middle" style="font-size:8.5px">Door Holder 24VDC</text>
+        <rect x="${x+54}" y="${y+32}" width="10" height="8" rx="1" fill="${on?'#1565c0':'#78909c'}"/>${on?`<path d="M${x+50},${y+36} h-6 M${x+50},${y+32} l-5,-3 M${x+50},${y+40} l-5,3" stroke="#1565c0" stroke-width="1.5"/>`:''}
         ${door}<circle cx="${hx}" cy="${hy}" r="3" fill="#5d4037"/></g>`;
       s+=stat(it,on?'good':'warn',on?'DOOR HELD OPEN':'DOOR RELEASED');return}
     const cls=['item'];let stt='';const nacDev=it.group==='nac';
@@ -523,11 +599,11 @@ function renderStage(){
       if(sim.kind==='conv'&&sim.active.has(it.id)&&sim.zoneAlarm.has(it.zone)&&sim.zoneInit[it.zone]!==it.id&&c)stt=stat(it,'warn','OPERATED – NOT REPORTED (ZONE LATCHED)');
       if(sim.kind==='conv'&&!nacDev&&it.zone&&sim.zoneAlarm.has(it.zone)&&!sim.active.has(it.id)&&c){cls.push('latched');stt=stat(it,'warn','ZONE IN ALARM – LOCKED OUT')}}
     if(test&&it.type==='iso'&&st.trips.has(it.id)){cls.push('isotrip');stt=stat(it,'warn','ISOLATING')}
-    const tapTop=it.type==='tb';
+    const tapTop=it.type==='tb';const fl=it.flip;
     s+=`<g class="${cls.join(' ')}" data-item="${it.id}"><rect class="dbox" x="${it.x}" y="${it.y}" width="${it.w}" height="${it.h}" rx="8"/>
       <text class="dtag" x="${it.x+it.w/2}" y="${it.y+(tapTop?33:18)}" text-anchor="middle">${it.id}</text>
       <text class="ddesc" x="${it.x+it.w/2}" y="${it.y+(tapTop?45:31)}" text-anchor="middle">${esc(it.desc)}</text>
-      <text class="dio" x="${it.x+5}" y="${it.y+14}">IN</text><text class="dio" x="${it.x+it.w-5}" y="${it.y+14}" text-anchor="end">OUT</text>
+      <text class="dio" x="${it.x+5}" y="${it.y+14}">${fl?'OUT':'IN'}</text><text class="dio" x="${it.x+it.w-5}" y="${it.y+14}" text-anchor="end">${fl?'IN':'OUT'}</text>
       ${icon(it,it.x+(it.addressable?44:it.w/2),it.y+(tapTop?62:54))}`;
     if(tapTop)s+=`<text class="dio" x="${it.x+66}" y="${it.y+21}" text-anchor="middle">DCLB TAP</text>`;
     if(it.mon)s+=`<text class="dio" x="${it.x+66}" y="${it.y+75}" text-anchor="middle">IDC</text>`;
@@ -535,9 +611,6 @@ function renderStage(){
     if(it.addressable){const a=sim.addr[it.id];top+=`<g class="badge ${a?'':'unset'}" data-addr="${it.id}" tabindex="0" role="button" aria-label="Set address for ${it.id}"><rect x="${it.x+66}" y="${it.y+38}" width="54" height="20" rx="4"/><text x="${it.x+93}" y="${it.y+52}" text-anchor="middle">${a?pad3(a):'ADDR?'}</text></g>`}
     s+=stt+`</g>`;
   });
-  sim.wires.forEach(w=>{const a=tpos(sim,w.a),b=tpos(sim,w.b);const pol=a.pol!=='*'?a.pol:b.pol;const pc=pol==='+'?'p':pol==='-'?'n':'x';
-    const{d,mid}=wirePath(a,b);
-    s+=`<g class="wg" data-wid="${w.id}" tabindex="0" role="button" aria-label="Conductor ${esc(tn(sim,w.a))} to ${esc(tn(sim,w.b))}"><path class="whit" d="${d}"/><path class="wire ${pc} ${w.open?'open':''}" d="${d}"/>${w.open?`<text class="openx" x="${mid.x}" y="${mid.y+6}" text-anchor="middle">✕</text>`:''}</g>`});
   s+=top;
   sim.items.forEach(it=>it.terms.forEach(t=>{const tid=it.id+'.'+t.id;const x=it.x+t.dx,y=it.y+t.dy;const pc=t.pol==='+'?'p':t.pol==='-'?'n':'x';
     const used=wireAt(sim,tid)?' used':'';
@@ -571,21 +644,23 @@ function renderResults(){const sim=cur();const ul=$('#results');
 const NACB=`<p><b>NAC 1 (Class B):</b> loop + and ${MINUS} from the panel NAC 1 terminals through <b>HS-1</b> (horn/strobe) and <b>H-1</b> (horn) and terminate on the <b>NAC EOL resistor</b>. Appliances are polarized.</p>`;
 const MONTXT=(mods)=>`<p><b>Sprinkler monitor modules (${mods}):</b> wire each module's <b>IDC</b> terminals (bottom of the module) to its conventional switch: IDC + → switch IN+ → OUT+ → <b>box tamper (BT)</b> → EOL; IDC ${MINUS} → switch IN${MINUS} → OUT${MINUS} → EOL. The box tamper monitors the device cover and is wired <b>in series with the EOL resistor, after the alarm switch</b>.</p>`;
 const RLYTXT=z=>`<p><b>Relay module RM-1 (${z}):</b> addressable output on the DCLC. Wire the door holder fail-safe: AUX 24VDC + → RM-1 <b>COM</b>, RM-1 <b>NC</b> → DH-1 +, DH-1 ${MINUS} → AUX 24VDC ${MINUS}. DH-1 is energized normally and releases on any fire alarm.</p>`;
+const FLIPTXT=`<p class="small">Rows that run right-to-left have their <b>IN</b> terminals on the right side (labelled on each device) so the loop flows cleanly.</p>`;
 const TASKTEXT={
  cb:`<p><b>Conventional Class B – two fire zones.</b> Each fire zone requires its own initiating zone circuit.</p><p><b>Zone 1:</b> ZONE 1 +/${MINUS} → PS-1 → SD-1 → <b>Zone 1 EOL</b>.<br><b>Zone 2:</b> ZONE 2 +/${MINUS} → HD-1 → SD-2 → <b>Zone 2 EOL</b>.<br>Loop IN → OUT of every device; no T-taps.</p>`+NACB,
  ca:`<p><b>Conventional Class A – two fire zones.</b> Each fire zone requires its own initiating zone circuit.</p><p><b>Zone 1:</b> Z1 B+/B${MINUS} → PS-1 → SD-1 → return to Z1 A+/A${MINUS}.<br><b>Zone 2:</b> Z2 B+/B${MINUS} → HD-1 → SD-2 → return to Z2 A+/A${MINUS}.<br>No field EOL resistors on Class A.</p><p><b>NAC 1 (Class A):</b> NAC B+/B${MINUS} → HS-1 → H-1 → return to NAC A+/A${MINUS}. No field EOL.</p>`,
- dclc:`<p><b>Addressable DCLC (Class A) – 2 zones, 4 isolators.</b> Isolators at the <b>start and end of each zone</b>: 2 at the panel (ISO-1 on SLC OUT, ISO-4 on SLC RET) and 2 between zones (ISO-2, ISO-3).</p><p>Route: SLC OUT → isolator → Zone 1 (incl. MM-1, RM-1) → isolator → isolator → Zone 2 (incl. MM-2) → isolator → SLC RET.</p>`+MONTXT('MM-1 waterflow FS-1 + BT-1; MM-2 valve tamper TS-1 + BT-2')+RLYTXT('Zone 1')+`<p><b>Addressing:</b> set every device and module to its address in the <b>Device Address List</b>.</p>`+NACB,
- dclb:`<p><b>DCLC with a DCLB tap – 2 zones, 4 isolators.</b> 2 at the panel (ISO-1, ISO-4) and 2 between zones (ISO-2, ISO-3) — one on <b>each side of the T-tap TB-1</b>.</p><p>Route: SLC OUT → isolator → Zone 1 → isolator → TB-1 → isolator → Zone 2 (incl. MM-1, RM-1) → isolator → SLC RET. From TB-1 <b>TAP</b> run a Class B DCLB through Suite 101 (ends at last device, no EOL).</p>`+MONTXT('MM-1 waterflow FS-1 + BT-1')+RLYTXT('Zone 2')+`<p><b>Addressing:</b> follow the <b>Device Address List</b>.</p>`+NACB};
+ dclc:`<p><b>Addressable DCLC (Class A) – 2 zones, 4 isolators.</b> Isolators at the <b>start and end of each zone</b>: 2 at the panel (ISO-1 on SLC OUT, ISO-4 on SLC RET) and 2 between zones in the riser (ISO-2, ISO-3).</p><p>Route: SLC OUT → ISO-1 → Zone 1 (incl. RM-1, MM-1) → ISO-2 → ISO-3 → Zone 2 (incl. MM-2) → ISO-4 → SLC RET.</p>`+FLIPTXT+MONTXT('MM-1 waterflow FS-1 + BT-1; MM-2 valve tamper TS-1 + BT-2')+RLYTXT('Zone 1')+`<p><b>Addressing:</b> set every device and module to its address in the <b>Device Address List</b>.</p>`+NACB,
+ dclb:`<p><b>DCLC with a DCLB tap – 2 zones, 4 isolators.</b> 2 at the panel (ISO-1, ISO-4) and 2 between zones (ISO-2, ISO-3) — one on <b>each side of the T-tap TB-1</b>.</p><p>Route: SLC OUT → ISO-1 → Zone 1 → ISO-2 → TB-1 → ISO-3 → Zone 2 (incl. MM-1, RM-1) → ISO-4 → SLC RET. From TB-1 <b>TAP</b> run a Class B DCLB through Suite 101 (ends at last device, no EOL).</p>`+FLIPTXT+MONTXT('MM-1 waterflow FS-1 + BT-1')+RLYTXT('Zone 2')+`<p><b>Addressing:</b> follow the <b>Device Address List</b>.</p>`+NACB};
 function testHelp(sim){return(sim.kind==='conv'
  ?`<p class="small"><b>Conventional zones:</b> when a device alarms, it shorts (clamps) its zone — the panel latches the zone in alarm and <b>no other device on that zone can report</b> until System Reset. A device on a <b>different</b> zone still reports and will resound silenced signals.</p>`
  :`<p class="small"><b>Silence / resound:</b> after Signal Silence, a subsequent alarm from a zone already in alarm does <b>not</b> resound the signals. An alarm from a <b>different</b> zone resounds them.</p><p class="small"><b>Box tamper:</b> in Test mode click a BT to remove / replace the cover — the module IDC opens and the panel shows a trouble. <b>Door holder:</b> watch DH-1 release on any fire alarm.</p>`)
- +`<p class="small"><b>Test mode:</b> click a device or switch to operate it; choose <b>Open conductor</b> and click a wire to break it${sim.kind==='addr'?'; choose <b>Short at device</b> to short the SLC there':''}.</p>`}
+ +`<p class="small"><b>Test mode:</b> click a device or switch to operate it; choose <b>Open conductor</b> and click a wire to break it${sim.kind==='addr'?'; choose <b>Short at device</b> to short the SLC there':''}.</p><p class="small"><b>Wires</b> are routed automatically around devices; a hump marks where two conductors cross without connecting. Use <b>Tidy wires</b> to re-route everything.</p>`}
 function renderWire(){
   const sim=cur();
   document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===state.mode));
   $('#toolSeg').hidden=state.mode!=='test';$('#shortBtn').hidden=sim.kind!=='addr';
   if(sim.kind!=='addr'&&state.tool==='short')state.tool='activate';
   document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('on',b.dataset.tool===state.tool));
+  applyTaskMin();
   $('#task').innerHTML=TASKTEXT[sim.key]+testHelp(sim)+(state.done[sim.key]?'<p style="color:var(--ok);font-weight:700">✔ Completed</p>':'');
   renderStage();renderPanel();renderResults();
 }
@@ -601,7 +676,7 @@ function onTerm(tid){
   const a=state.sel;
   if(a.split('.')[0]===tid.split('.')[0]){hint('Both ends are on the same module — choose a terminal on another module.');return}
   if(wireAt(sim,tid)){hint('Destination already has a conductor — one conductor per terminal (loop IN and OUT so every device stays supervised).');return}
-  pushUndo(sim);sim.wires.push({id:'w'+(++sim.seq),a,b:tid,open:false});state.sel=null;sim.results=null;
+  pushUndo(sim);const w={id:'w'+(++sim.seq),a,b:tid,open:false};sim.wires.push(w);w.path=route(sim,w);state.sel=null;sim.results=null;
   hint(`Conductor installed: ${tn(sim,a)} → ${tn(sim,tid)}`);renderStage();renderPanel();renderResults();
 }
 function onWire(wid){const sim=cur();const w=sim.wires.find(x=>x.id===wid);if(!w)return;
@@ -772,11 +847,14 @@ function renderHelp(){
   <table><tr><th>Task</th><th>Status</th></tr>${rows}</table>
   <p class="small">${SCORM.api?'Connected to the LMS – your score is reported automatically.':'Running stand-alone – progress is saved in this browser only.'}</p>
   <h2>How to use</h2>
-  <ol><li><b>Wire mode:</b> click a terminal, then the destination terminal to install a conductor. Click a wire to remove it. One conductor per terminal – loop through each device's IN and OUT terminals.</li>
+  <ol><li><b>Wire mode:</b> click a terminal, then the destination terminal to install a conductor. Wires are routed automatically around devices and show a hump where they cross another conductor. Click a wire to remove it; <b>Tidy wires</b> re-routes everything.</li>
+  <li><b>Zoom:</b> use − / Fit / + to enlarge the drawing; scroll to move around.</li>
   <li><b>Addresses:</b> on addressable tabs, click the <b>ADDR?</b> badge on each device/module and set the address shown in the Device Address List.</li>
   <li><b>Check wiring:</b> verifies continuity, polarity, Class A/B termination, EOL placement, zoning, isolators, DCLB branch, monitor module IDCs (alarm switch + box tamper), relay/door holder circuit, NAC and addressing.</li>
   <li><b>Test mode:</b> operate devices and switches, remove box covers, open conductors and (addressable) apply shorts. Watch the FACP display, signals, isolators and door holder.</li>
-  <li><b>Panel Programming:</b> build the sequence of operations in block or ladder logic and check it against each challenge.</li></ol>
+  <li><b>Panel Programming:</b> build the sequence of operations in block or ladder logic and check it against each challenge.</li>
+  <li><b>Saving your work:</b> press <b>Save to file</b> (top right) to download a save file containing your wiring, addresses, programs and completed tasks. Next time, press <b>Load save</b> and choose that file to continue. If downloads are blocked, copy the save code shown and paste it back in later.</li>
+  <li><b>More room:</b> use <b>Minimize</b> on the Task card to hide the instructions while you wire.</li></ol>
   <h2>Quick reference</h2>
   <table><tr><th>Circuit</th><th>Termination</th><th>Single open</th></tr>
   <tr><td>Conventional Class B zone</td><td>Zone EOL resistor after the last device</td><td>Trouble; devices beyond the open are lost</td></tr>
@@ -819,6 +897,9 @@ function show(){renderTabs();const w=['cb','ca','dclc','dclb'].includes(state.ta
 $('#tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(!b)return;state.tab=b.dataset.tab;show()});
 document.querySelectorAll('[data-mode]').forEach(b=>b.addEventListener('click',()=>{state.mode=b.dataset.mode;state.sel=null;hint(state.mode==='test'?'Test mode – operate devices and introduce faults.':'Wire mode – click terminals to install conductors.');renderWire()}));
 document.querySelectorAll('[data-tool]').forEach(b=>b.addEventListener('click',()=>{state.tool=b.dataset.tool;renderWire()}));
+function zoomStep(f){const sim=cur();const curZ=state.zoom==null?($('#stage').getBoundingClientRect().width/sim.vw):state.zoom;state.zoom=Math.min(2,Math.max(0.4,Math.round(curZ*f*100)/100));applyZoom(sim)}
+$('#zIn').addEventListener('click',()=>zoomStep(1.2));$('#zOut').addEventListener('click',()=>zoomStep(1/1.2));$('#zFit').addEventListener('click',()=>{state.zoom=null;applyZoom(cur())});
+$('#tidyBtn').addEventListener('click',()=>{const sim=cur();if(!sim.wires.length)return;pushUndo(sim);rerouteAll(sim);hint('All conductors re-routed.');renderStage()});
 $('#stage').addEventListener('click',e=>{
   const ad=e.target.closest('[data-addr]');if(ad){if(state.mode==='wire')openAddr(ad.dataset.addr);else onDevice(ad.dataset.addr);return}
   const t=e.target.closest('[data-tid]');if(t&&state.mode==='wire'){onTerm(t.dataset.tid);return}
@@ -868,6 +949,70 @@ $('#helpView').addEventListener('click',e=>{if(e.target.id==='resetProg'){state.
 setInterval(()=>{if(state.tab==='prog'&&P.mode==='block'&&P.blocks.some(r=>r.delay>0))updateLive()},250);
 window.addEventListener('pagehide',()=>SCORM.finish());
 
+/* ---------------- Task panel minimize ---------------- */
+function applyTaskMin(){const m=!!state.settings.taskMin;$('#taskCard').classList.toggle('min',m);$('#task').hidden=m;
+  const b=$('#taskTog');b.textContent=m?'▾ Show task':'▴ Minimize';b.setAttribute('aria-expanded',String(!m))}
+$('#taskTog').addEventListener('click',()=>{state.settings.taskMin=!state.settings.taskMin;saveLocal();applyTaskMin()});
+
+/* ---------------- Save file export / import ---------------- */
+const WTABS=['cb','ca','dclc','dclb'];
+function snapshot(){const sims={};
+  WTABS.forEach(k=>{const s=state.sims[k];if(!s||(!s.wires.length&&!Object.keys(s.addr).length))return;
+    sims[k]={wires:s.wires.map(w=>({a:w.a,b:w.b,open:!!w.open})),addr:Object.assign({},s.addr),coverOff:[...s.coverOff]}});
+  return{app:'fasim',version:6,saved:new Date().toISOString(),tab:state.tab,done:Object.assign({},state.done),settings:Object.assign({},state.settings),sims,
+    prog:{mode:P.mode,ch:P.ch,blocks:P.blocks.map(r=>({out:r.out,gate:r.gate,delay:r.delay,ins:r.ins.map(x=>({id:x.id,not:!!x.not}))})),
+      rungs:P.rungs.map(g=>({coil:g.coil,branches:g.branches.map(b=>b.map(c=>({id:c.id,nc:!!c.nc})))}))}}}
+function summary(o){const n=TASKS.filter(t=>o.done&&o.done[t[0]]).length;const w=WTABS.filter(k=>o.sims&&o.sims[k]).map(k=>`${TABS.find(t=>t[0]===k)[1]} (${o.sims[k].wires.length} wires)`);
+  const d=o.saved?new Date(o.saved):null;
+  return`<b>${n} of ${TASKS.length}</b> tasks complete${d&&!isNaN(d)?` • saved ${esc(d.toLocaleString())}`:''}<br>${w.length?'Wiring in progress: '+esc(w.join(', ')):'No wiring in progress'}<br>Program: ${o.prog?((o.prog.mode==='ladder'?o.prog.rungs.length+' ladder rung(s)':o.prog.blocks.length+' logic block(s)')):'none'}`}
+function fileName(){const d=new Date(),p=n=>String(n).padStart(2,'0');return`FireAlarmSim_save_${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.json`}
+function download(txt){try{const blob=new Blob([txt],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=fileName();a.style.display='none';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove()},1500);return true}catch(e){return false}}
+let lastExport='';
+$('#expBtn').addEventListener('click',()=>{const o=snapshot();lastExport=JSON.stringify(o);const ok=download(lastExport);
+  $('#expSum').innerHTML=summary(o);$('#expTxt').value=lastExport;$('#expMsg').className='msg'+(ok?'':' bad');$('#expMsg').textContent=ok?'':'The download could not start – use “Copy save code”.';$('#expDlg').hidden=false;$('#expClose').focus()});
+$('#expDl').addEventListener('click',()=>{download(lastExport)});
+$('#expCopy').addEventListener('click',async()=>{const ta=$('#expTxt');let ok=false;try{await navigator.clipboard.writeText(ta.value);ok=true}catch(e){try{ta.focus();ta.select();ok=document.execCommand('copy')}catch(e2){}}
+  $('#expMsg').className='msg '+(ok?'good':'bad');$('#expMsg').textContent=ok?'Save code copied to the clipboard.':'Copy blocked – select the text in the box and press Ctrl+C.';if(!ok){ta.focus();ta.select()}});
+$('#expClose').addEventListener('click',()=>{$('#expDlg').hidden=true});
+function openImport(){$('#impTxt').value='';$('#impMsg').textContent='';$('#impMsg').className='msg';$('#impFile').value='';$('#impDlg').hidden=false;$('#impPick').focus()}
+$('#impBtn').addEventListener('click',openImport);
+$('#impCancel').addEventListener('click',()=>{$('#impDlg').hidden=true});
+$('#impPick').addEventListener('click',()=>$('#impFile').click());
+$('#impFile').addEventListener('change',e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
+  if(f.size>2e6){impErr('That file is too large to be a simulator save.');return}
+  const r=new FileReader();r.onload=()=>loadSave(String(r.result||''));r.onerror=()=>impErr('The file could not be read.');r.readAsText(f)});
+$('#impGo').addEventListener('click',()=>{const t=$('#impTxt').value.trim();if(!t){impErr('Paste a save code first, or choose a save file.');return}loadSave(t)});
+function impErr(m){$('#impMsg').className='msg bad';$('#impMsg').textContent=m}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!$('#expDlg').hidden)$('#expDlg').hidden=true;if(!$('#impDlg').hidden)$('#impDlg').hidden=true}});
+function validTid(sim,tid){if(typeof tid!=='string')return false;const i=tid.indexOf('.');if(i<1)return false;const it=sim.map[tid.slice(0,i)];return!!(it&&it.terms.some(t=>t.id===tid.slice(i+1)))}
+function loadSave(txt){
+  let o;try{o=JSON.parse(txt)}catch(e){impErr('This is not a valid save file (could not read it).');return}
+  if(!o||o.app!=='fasim'||typeof o!=='object'){impErr('This file was not created by the Fire Alarm Simulator.');return}
+  let skipped=0;
+  /* rebuild wiring tabs */
+  state.sims={};
+  WTABS.forEach(k=>{const d=o.sims&&o.sims[k];if(!d)return;const sim=getSim(k);const used=new Set();
+    (Array.isArray(d.wires)?d.wires:[]).forEach(w=>{if(!w||!validTid(sim,w.a)||!validTid(sim,w.b)||w.a===w.b||used.has(w.a)||used.has(w.b)||w.a.split('.')[0]===w.b.split('.')[0]){skipped++;return}
+      used.add(w.a);used.add(w.b);sim.wires.push({id:'w'+(++sim.seq),a:w.a,b:w.b,open:!!w.open})});
+    if(d.addr&&typeof d.addr==='object')Object.entries(d.addr).forEach(([id,a])=>{const v=Number(a);if(sim.map[id]&&sim.map[id].addressable&&Number.isInteger(v)&&v>=1&&v<=159)sim.addr[id]=v});
+    (Array.isArray(d.coverOff)?d.coverOff:[]).forEach(id=>{if(sim.map[id]&&sim.map[id].type==='ser')sim.coverOff.add(id)});
+    sim.wires.forEach(w=>{w.path=null})});
+  /* progress + settings */
+  state.done={};if(o.done)TASKS.forEach(t=>{if(o.done[t[0]])state.done[t[0]]=true});
+  if(o.settings){state.settings.floorIso=o.settings.floorIso!==false;state.settings.taskMin=!!o.settings.taskMin}
+  /* programming */
+  const okI=id=>INPUTS.some(i=>i.id===id),okO=id=>OUTPUTS.some(x=>x.id===id);
+  if(o.prog){const pr=o.prog;P.mode=pr.mode==='ladder'?'ladder':'block';P.ch=Number.isInteger(pr.ch)&&pr.ch>=0&&pr.ch<CH.length?pr.ch:0;P.I={};P.since={};
+    P.blocks=(Array.isArray(pr.blocks)?pr.blocks:[]).filter(r=>r&&okO(r.out)).map(r=>({id:P.nid++,out:r.out,gate:['OR','AND','NOR','NAND'].includes(r.gate)?r.gate:'OR',
+      delay:Math.min(60,Math.max(0,Math.round(Number(r.delay)||0))),ins:(Array.isArray(r.ins)?r.ins:[]).filter(x=>x&&okI(x.id)).map(x=>({id:x.id,not:!!x.not}))}));
+    P.rungs=(Array.isArray(pr.rungs)?pr.rungs:[]).filter(g=>g&&okO(g.coil)).map(g=>({id:P.nid++,coil:g.coil,branches:(Array.isArray(g.branches)&&g.branches.length?g.branches:[[]]).map(b=>(Array.isArray(b)?b:[]).filter(c=>c&&okI(c.id)).map(c=>({id:c.id,nc:!!c.nc})))}))}
+  if(TABS.some(t=>t[0]===o.tab))state.tab=o.tab;
+  state.mode='wire';state.sel=null;
+  saveLocal();const n=TASKS.filter(t=>state.done[t[0]]).length;SCORM.report(Math.round(n/TASKS.length*100),n===TASKS.length);
+  updateProgress();show();$('#progRes').innerHTML='';
+  $('#impDlg').hidden=true;toast(`✔ Save loaded – ${n} of ${TASKS.length} tasks complete${skipped?` (${skipped} invalid conductor${skipped>1?'s':''} skipped)`:''}`);
+}
+
 loadLocal();SCORM.init();updateProgress();show();
-window.__fasim={state,P,cur,AUD,VIS,CH,computeOut};
+window.__fasim={state,P,cur,AUD,VIS,CH,computeOut,rerouteAll,snapshot,loadSave};
 })();

@@ -13,7 +13,13 @@
       <h1>Fire Alarm Wiring &amp; Programming Simulator</h1>
       <p class="sub">Conventional Class B / Class A • Addressable DCLC • DCLC with DCLB tap • NAC • Monitor &amp; relay modules • Panel logic programming</p>
     </div>
-    <div class="progbox"><div class="pbar"><span id="pfill"></span></div><small id="ptext">0 of 10 tasks complete</small></div>
+    <div class="hdr-r">
+      <div class="savebtns">
+        <button type="button" id="expBtn" title="Download a save file of all your work">Save to file</button>
+        <button type="button" id="impBtn" title="Load a previously saved file">Load save</button>
+      </div>
+      <div class="progbox"><div class="pbar"><span id="pfill"></span></div><small id="ptext">0 of 10 tasks complete</small></div>
+    </div>
   </header>
 
   <nav class="tabs" role="tablist" id="tabs"></nav>
@@ -29,15 +35,21 @@
         <button type="button" data-tool="open">Open conductor</button>
         <button type="button" data-tool="short" id="shortBtn">Short at device</button>
       </div>
+      <div class="seg" role="group" aria-label="Zoom">
+        <button type="button" id="zOut" aria-label="Zoom out">−</button>
+        <button type="button" id="zFit">Fit</button>
+        <button type="button" id="zIn" aria-label="Zoom in">+</button>
+      </div>
       <span class="sp"></span>
+      <button type="button" id="tidyBtn" title="Re-route every conductor for the cleanest layout">⤳ Tidy wires</button>
       <button type="button" id="undoBtn">↶ Undo</button>
       <button type="button" id="clearBtn">Clear wires</button>
       <button type="button" id="checkBtn" class="primary">✔ Check wiring</button>
     </div>
     <div class="wgrid">
       <div class="stagewrap">
-        <div class="legend"><span><i style="background:var(--pos)"></i>Positive (+)</span><span><i style="background:var(--neg)"></i>Negative (−)</span><span>Click a terminal, then a second terminal to run a conductor. Click a wire to remove it.</span></div>
-        <svg id="stage" viewBox="0 0 1040 800" role="application" aria-label="Wiring workspace"></svg>
+        <div class="legend"><span><i style="background:var(--pos)"></i>Positive (+)</span><span><i style="background:var(--neg)"></i>Negative (−)</span><span><i style="background:#8d6e63"></i>Non-polarized</span><span>Click a terminal, then a second terminal to run a conductor. Click a wire to remove it.</span></div>
+        <div class="svgwrap" id="svgwrap"><svg id="stage" viewBox="0 0 1040 800" role="application" aria-label="Wiring workspace"></svg></div>
         <div id="hint" class="hint" aria-live="polite"></div>
         <div id="addrDlg" class="dlg" hidden>
           <div class="box" role="dialog" aria-modal="true" aria-labelledby="addrTitle">
@@ -49,7 +61,7 @@
         </div>
       </div>
       <aside class="side">
-        <div class="card"><h3>Task</h3><div id="task"></div></div>
+        <div class="card" id="taskCard"><div class="cardhd"><h3>Task</h3><button type="button" id="taskTog" aria-expanded="true" aria-controls="task">▴ Minimize</button></div><div id="task"></div></div>
         <div class="card">
           <h3>FACP Display</h3>
           <div class="leds">
@@ -115,6 +127,28 @@
 
   <section id="helpView" class="card pv" hidden></section>
   <div id="toast" role="status" aria-live="polite"></div>
+
+  <div class="modal" id="expDlg" hidden>
+    <div class="box" role="dialog" aria-modal="true" aria-labelledby="expTitle">
+      <h4 id="expTitle">Save your work</h4>
+      <p>A save file has been downloaded (check your Downloads folder). Keep it somewhere safe — on another day, press <b>Load save</b> and choose this file to continue where you left off.</p>
+      <div class="sum" id="expSum"></div>
+      <p class="small">If your browser or Brightspace blocked the download, copy the save code below and paste it into a text file (or an email to yourself).</p>
+      <textarea id="expTxt" readonly aria-label="Save code"></textarea>
+      <div class="msg" id="expMsg" aria-live="polite"></div>
+      <div class="row"><button type="button" id="expDl">Download again</button><button type="button" id="expCopy">Copy save code</button><button type="button" class="primary" id="expClose">Done</button></div>
+    </div>
+  </div>
+  <div class="modal" id="impDlg" hidden>
+    <div class="box" role="dialog" aria-modal="true" aria-labelledby="impTitle">
+      <h4 id="impTitle">Load a save</h4>
+      <p>Choose a save file (<b>.json</b>) exported from this simulator, <b>or</b> paste a save code below. Loading replaces the work currently on screen.</p>
+      <div class="row" style="justify-content:flex-start;margin-top:4px"><button type="button" class="primary" id="impPick">Choose save file…</button><input type="file" id="impFile" accept=".json,application/json,text/plain" hidden></div>
+      <textarea id="impTxt" placeholder="…or paste a save code here" aria-label="Paste save code"></textarea>
+      <div class="msg" id="impMsg" aria-live="polite"></div>
+      <div class="row"><button type="button" id="impCancel">Cancel</button><button type="button" class="primary" id="impGo">Load pasted code</button></div>
+    </div>
+  </div>
 </div>
 
     <script type="module" src="Script.js"></script>
