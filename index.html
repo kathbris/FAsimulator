@@ -11,7 +11,7 @@
   <header class="top">
     <div>
       <h1>Fire Alarm Wiring &amp; Programming Simulator</h1>
-      <p class="sub">Conventional Class B / Class A • Addressable DCLC • DCLC with DCLB tap • NAC • Monitor &amp; relay modules • Panel logic programming</p>
+      <p class="sub">Conventional Class B / Class A • Addressable DCLC • DCLC with DCLB tap • NAC • Sprinkler devices • Multimeter • Panel logic programming</p>
     </div>
     <div class="hdr-r">
       <div class="savebtns">
@@ -35,13 +35,14 @@
         <button type="button" data-tool="open">Open conductor</button>
         <button type="button" data-tool="short" id="shortBtn">Short at device</button>
       </div>
+      <button type="button" id="meterTog" aria-pressed="false" hidden>Multimeter</button>
       <div class="seg" role="group" aria-label="Zoom">
         <button type="button" id="zOut" aria-label="Zoom out">−</button>
-        <button type="button" id="zFit">Zoom</button>
+        <button type="button" id="zFit">Fit</button>
         <button type="button" id="zIn" aria-label="Zoom in">+</button>
       </div>
       <span class="sp"></span>
-      <button type="button" id="tidyBtn" title="Re-route every conductor for the cleanest layout">⤳ Tidy wires</button>
+      <button type="button" id="tidyBtn" title="Re-route every conductor for the cleanest layout">Tidy wires</button>
       <button type="button" id="undoBtn">↶ Undo</button>
       <button type="button" id="clearBtn">Clear wires</button>
       <button type="button" id="checkBtn" class="primary">✔ Check wiring</button>
@@ -50,6 +51,23 @@
       <div class="stagewrap">
         <div class="legend"><span><i style="background:var(--pos)"></i>Positive (+)</span><span><i style="background:var(--neg)"></i>Negative (−)</span><span><i style="background:#8d6e63"></i>Non-polarized</span><span>Click a terminal, then a second terminal to run a conductor. Click a wire to remove it.</span></div>
         <div class="svgwrap" id="svgwrap"><svg id="stage" viewBox="0 0 1040 800" role="application" aria-label="Wiring workspace"></svg></div>
+        <div id="dmmLayer" hidden>
+          <svg id="leadSvg" aria-hidden="true"><path id="leadBlk" stroke="#1b1b1b"/><path id="leadRed" stroke="#c62828"/></svg>
+          <div class="hhm" id="dmm" role="group" aria-label="Handheld digital multimeter (drag to move)">
+            <div class="hhm-face">
+              <div class="hhm-top"><span class="brand">FA-DMM 87 TRUE-RMS</span><button type="button" id="dmmPark" title="Return probes to the meter" aria-label="Return probes">⟲</button><button type="button" id="dmmClose" title="Put the meter away" aria-label="Close meter">×</button></div>
+              <div class="hhm-lcd"><div class="hhm-mode"><span id="dmmMode">OFF</span><span id="dmmRange"></span></div><div class="hhm-val off" id="dmmVal" aria-live="polite">-8.8.8.8</div></div>
+              <div class="hhm-dial" id="dmmDial">
+                <button type="button" data-dial="off">OFF</button><button type="button" data-dial="volt">V DC</button><button type="button" data-dial="ohm">Ω</button><button type="button" data-dial="amm">A DC</button>
+                <div class="knob" id="knob" title="Click to turn the dial" role="button" tabindex="0" aria-label="Rotary dial"></div>
+              </div>
+              <div class="hhm-jacks"><span class="jack red" id="jackA"><b></b>A</span><span class="jack blk" id="jackCOM"><b></b>COM</span><span class="jack red" id="jackV"><b></b>VΩ</span></div>
+            </div>
+            <div class="hhm-note" id="dmmNote"></div>
+          </div>
+          <div class="ptip red" id="probeRed" data-probe="red" tabindex="0" role="button" aria-label="Red probe – drag onto a terminal or conductor, or press Enter then click a terminal"><svg width="24" height="96" viewBox="0 0 24 96"><path d="M12 0 L13.4 6 L13.4 20 L10.6 20 L10.6 6 Z" fill="#cfd8dc" stroke="#78909c" stroke-width=".6"/><ellipse cx="12" cy="22" rx="10" ry="3.5" fill="#d32f2f"/><rect x="5" y="23" width="14" height="52" rx="6" fill="#d32f2f"/><rect x="7" y="34" width="10" height="2" fill="#0003"/><rect x="7" y="40" width="10" height="2" fill="#0003"/><rect x="7" y="46" width="10" height="2" fill="#0003"/><path d="M8 75 L16 75 L14 96 L10 96 Z" fill="#7f0000"/></svg></div>
+          <div class="ptip black" id="probeBlk" data-probe="black" tabindex="0" role="button" aria-label="Black COM probe – drag onto a terminal or conductor, or press Enter then click a terminal"><svg width="24" height="96" viewBox="0 0 24 96"><path d="M12 0 L13.4 6 L13.4 20 L10.6 20 L10.6 6 Z" fill="#cfd8dc" stroke="#78909c" stroke-width=".6"/><ellipse cx="12" cy="22" rx="10" ry="3.5" fill="#212121"/><rect x="5" y="23" width="14" height="52" rx="6" fill="#212121"/><rect x="7" y="34" width="10" height="2" fill="#0003"/><rect x="7" y="40" width="10" height="2" fill="#0003"/><rect x="7" y="46" width="10" height="2" fill="#0003"/><path d="M8 75 L16 75 L14 96 L10 96 Z" fill="#000"/></svg></div>
+        </div>
         <div id="hint" class="hint" aria-live="polite"></div>
         <div id="addrDlg" class="dlg" hidden>
           <div class="box" role="dialog" aria-modal="true" aria-labelledby="addrTitle">
@@ -78,6 +96,7 @@
             <button type="button" id="resetBtn">System Reset</button>
             <button type="button" id="clrFaultBtn">Repair all faults</button>
             <button type="button" id="sndBtn" aria-pressed="true">Sound: ON</button>
+            <button type="button" id="pwrBtn">Power down panel</button>
           </div>
         </div>
         <div class="card" id="addrCard" hidden>
