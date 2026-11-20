@@ -17,7 +17,7 @@ const TASKS=[
  ['prog2','Program: Door holders (fail-safe)'],['prog3','Program: Elevator recall'],
  ['prog4','Program: Cross-zoned pre-action release'],['prog5','Program: Full sequence of operations']
 ];
-const TABS=[['cb','Conventional Class B'],['ca','Conventional Class A'],['dclc','Addressable DCLC'],['dclb','DCLC + DCLB Tap'],['prog','Panel Programming'],['help','Progress & Help']];
+const TABS=[['cb','Conventional Class B'],['ca','Conventional Class A'],['dclc','Addressable DCLC'],['dclb','DCLC + DCLB Tap'],['prog','Programming Concepts'],['help','Progress & Help']];
 const WTABS=['cb','ca','dclc','dclb'];
 const state={tab:'cb',mode:'wire',tool:'activate',sel:null,zoom:null,armed:null,dmm:{open:false,mode:'off',x:null,y:null,blown:false},settings:{floorIso:true,taskMin:false},done:{},sims:{}};
 
@@ -1100,7 +1100,7 @@ function renderHelp(){
   <li><b>Test mode:</b> operate devices and switches, remove box covers, open conductors and (addressable) apply shorts. Watch the FACP display, signals, isolators and door holder.</li>
   <li><b>Sprinkler tree:</b> every wiring tab has a sprinkler riser. In Test mode, operate FS-1 (or click the flow switch on the tree) to see water flow through the riser and out the heads. Click the control valve on the tree to close or open it. While the valve is closed the flow switch cannot operate, and closing the valve stops any flow in progress.</li>
   <li><b>Multimeter:</b> in Test mode, press <b>Multimeter</b> to bring out a handheld meter with draggable probes (see below).</li>
-  <li><b>Panel Programming:</b> build the sequence of operations in block or ladder logic and check it against each challenge.</li>
+  <li><b>Programming Concepts:</b> build the sequence of operations in block or ladder logic and check it against each challenge.</li>
   <li><b>Saving your work:</b> press <b>Save to file</b> (top right) to download a save file containing your wiring, addresses, programs and completed tasks. Next time, press <b>Load save</b> and choose that file. If downloads are blocked, copy the save code shown and paste it back in later.</li>
   <li><b>More room:</b> use <b>Minimize</b> on the Task card to hide the instructions while you wire.</li></ol>
   <h2>Multimeter</h2>
