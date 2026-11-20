@@ -1,4 +1,4 @@
-/* Fire Alarm Wiring & Programming Simulator v10 – app.js
+/* Fire Alarm Wiring & Programming Simulator v11 – app.js
    No external resources. SCORM 1.2 aware (optional). */
 (function(){
 "use strict";
@@ -110,13 +110,13 @@ function buildConv(cls){
     if(cls==='A')t.push(T2(n+'A+',dy+60,`Z${n} A+ (RET)`,'+'),T2(n+'A-',dy+90,`Z${n} A${MINUS} (RET)`,'-'));return t};
   const terms=zt(1,60).concat(zt(2,230),zt(3,400),zt(4,570),nacTerms(cls,760));
   const items=[mkPanel(20,120,940,`Conventional • Class ${cls}`,terms)];
-  items.push(mkDev('PS-1','PS','Manual Pull Station',330,100,{zone:'Z1'}),mkDev('SD-1','SD','2-Wire Smoke Det.',620,100,{zone:'Z1'}),mkEOL('EOL1',910,110,'Zone 1 EOL Resistor',cls),
-    mkDev('HD-1','HD','Heat Detector',330,330,{zone:'Z2'}),mkDev('SD-2','SD','2-Wire Smoke Det.',620,330,{zone:'Z2'}),mkEOL('EOL2',910,340,'Zone 2 EOL Resistor',cls),
+  items.push(mkDev('PS-1','PS','Manual Pull Station',270,100,{zone:'Z1'}),mkDev('PS-2','PS','Manual Pull Station',452,100,{zone:'Z1'}),mkDev('SD-1','SD','2-Wire Smoke Det.',634,100,{zone:'Z1'}),mkEOL('EOL1',998,110,'Zone 1 EOL Resistor',cls),
+    mkDev('PS-3','PS','Manual Pull Station',270,330,{zone:'Z2'}),mkDev('PS-4','PS','Manual Pull Station',452,330,{zone:'Z2'}),mkDev('HD-1','HD','Heat Detector',634,330,{zone:'Z2'}),mkDev('SD-2','SD','2-Wire Smoke Det.',816,330,{zone:'Z2'}),mkEOL('EOL2',998,340,'Zone 2 EOL Resistor',cls),
     mkDev('FS-1','FS','Waterflow Alarm Switch',330,560,{zone:'Z3',group:'spr',w:140}),mkBT('BT-1',560,572,null,'Z3','spr'),mkEOL('EOL3',720,571,'Zone 3 EOL Resistor',cls),
     mkDev('TS-1','TS','Valve Tamper Switch',330,700,{zone:'Z4',group:'spr',w:140,sup:true}),mkBT('BT-2',560,712,null,'Z4','spr'),mkEOL('EOL4',720,711,'Zone 4 EOL Resistor',cls));
   addNAC(items,380,920,cls);
   return{key:cls==='B'?'cb':'ca',kind:'conv',cls,nacCls:cls,items,vw:1220,vh:1080,tree:{x:900,y:515,fsLbl:'FS-1 + BT-1 (ZONE 3)',vLbl:'TS-1 + BT-2 (ZONE 4)'},blocks:[[895,510,1205,834]],
-    zones:[{n:1,z:'Z1',members:['PS-1','SD-1']},{n:2,z:'Z2',members:['HD-1','SD-2']},
+    zones:[{n:1,z:'Z1',members:['PS-1','PS-2','SD-1']},{n:2,z:'Z2',members:['PS-3','PS-4','HD-1','SD-2']},
       {n:3,z:'Z3',members:['FS-1'],sw:'FS-1',bt:'BT-1',label:'waterflow'},{n:4,z:'Z4',members:['TS-1'],sw:'TS-1',bt:'BT-2',label:'valve tamper – supervisory',sup:true}],
     zoneNames:{Z1:'Zone 1',Z2:'Zone 2',Z3:'Zone 3 (Waterflow)',Z4:'Zone 4 (Supervisory)'},
     rooms:[{x:240,y:20,w:970,h:230,l:'FIRE ZONE 1 – MAIN ENTRANCE / OFFICE'},{x:240,y:260,w:970,h:230,l:'FIRE ZONE 2 – WAREHOUSE'},
@@ -130,18 +130,19 @@ function buildDCLC(){
     mkIso('ISO-4',250,60,true),mkMM('MM-2','Tamper Monitor Mod.',430,60,{...z2,sup:true},{eol:'MEOL2',sw:'TS-1',bt:'BT-2'}),
     mkDev('HD-1','HD','Heat Detector',610,60,z2),mkDev('SD-4','SD','Smoke Detector',790,60,z2),mkDev('SD-3','SD','Smoke Detector',970,60,z2),
     mkDev('TS-1','TS','Valve Tamper Switch',430,240,{group:'mon',zone:'Z2',monOf:'MM-2',w:126}),mkBT('BT-2',620,252,'MM-2','Z2'),mkEOL('MEOL2',770,251,'MM-2 EOL Resistor','B'),
+    mkDev('PS-3','PS','Manual Pull Station',920,240,z2),mkDev('PS-4','PS','Manual Pull Station',1100,240,z2),
     mkIso('ISO-3',1330,220,true),mkIso('ISO-2',1330,490),
     mkIso('ISO-1',250,490),mkDev('PS-1','PS','Manual Pull Station',430,490,z1),mkRM('RM-1',610,490,z1),
     mkDev('SD-1','SD','Smoke Detector',790,490,z1),mkDev('SD-2','SD','Smoke Detector',970,490,z1),
     mkMM('MM-1','Waterflow Monitor Mod.',1150,490,z1,{eol:'MEOL1',sw:'FS-1',bt:'BT-1'}),
-    mkDH('DH-1',740,650),
+    mkDev('PS-2','PS','Manual Pull Station',430,650,z1),mkDH('DH-1',740,650),
     mkDev('FS-1','FS','Waterflow Alarm Switch',900,660,{group:'mon',zone:'Z1',monOf:'MM-1',w:126}),mkBT('BT-1',1080,672,'MM-1','Z1'),mkEOL('MEOL1',1220,671,'MM-1 EOL Resistor','B'));
   addNAC(items,430,860,'B');
   return{key:'dclc',kind:'addr',cls:'A',nacCls:'B',items,vw:1820,vh:1030,tree:{x:1495,y:330,fsLbl:'FS-1 + BT-1 → MM-1',vLbl:'TS-1 + BT-2 → MM-2'},blocks:[[1488,325,1800,650]],
     zoneNames:{Z1:'Zone 1 (Floor 1)',Z2:'Zone 2 (Floor 2)'},interZone:2,
-    points:[{a:1,k:'PS',tag:'PS-1',loc:'Zone 1 – Floor 1'},{a:2,k:'SD',tag:'SD-1',loc:'Zone 1 – Floor 1'},{a:3,k:'SD',tag:'SD-2',loc:'Zone 1 – Floor 1'},{a:4,k:'MM',tag:'MM-1',loc:'Zone 1 – Sprinkler Waterflow (FS-1)'},{a:5,k:'RM',tag:'RM-1',loc:'Zone 1 – Door Holder Release (DH-1)'},
-            {a:21,k:'SD',tag:'SD-3',loc:'Zone 2 – Floor 2'},{a:22,k:'SD',tag:'SD-4',loc:'Zone 2 – Floor 2'},{a:23,k:'HD',tag:'HD-1',loc:'Zone 2 – Floor 2'},{a:24,k:'MM',tag:'MM-2',loc:'Zone 2 – Sprinkler Valve Tamper (TS-1)'}],
-    rooms:[{x:230,y:20,w:1065,h:170,l:'ZONE 2 – FLOOR 2'},{x:230,y:200,w:1065,h:170,l:'SPRINKLER VALVE ROOM'},{x:1305,y:20,w:165,h:640,l:'RISER'},
+    points:[{a:1,k:'PS',tag:'PS-1',loc:'Zone 1 – Floor 1'},{a:2,k:'SD',tag:'SD-1',loc:'Zone 1 – Floor 1'},{a:3,k:'SD',tag:'SD-2',loc:'Zone 1 – Floor 1'},{a:4,k:'MM',tag:'MM-1',loc:'Zone 1 – Sprinkler Waterflow (FS-1)'},{a:5,k:'RM',tag:'RM-1',loc:'Zone 1 – Door Holder Release (DH-1)'},{a:6,k:'PS',tag:'PS-2',loc:'Zone 1 – Floor 1'},
+            {a:21,k:'SD',tag:'SD-3',loc:'Zone 2 – Floor 2'},{a:22,k:'SD',tag:'SD-4',loc:'Zone 2 – Floor 2'},{a:23,k:'HD',tag:'HD-1',loc:'Zone 2 – Floor 2'},{a:24,k:'MM',tag:'MM-2',loc:'Zone 2 – Sprinkler Valve Tamper (TS-1)'},{a:25,k:'PS',tag:'PS-3',loc:'Zone 2 – Floor 2'},{a:26,k:'PS',tag:'PS-4',loc:'Zone 2 – Floor 2'}],
+    rooms:[{x:230,y:20,w:1065,h:170,l:'ZONE 2 – FLOOR 2'},{x:230,y:200,w:660,h:170,l:'SPRINKLER VALVE ROOM'},{x:900,y:200,w:395,h:170,l:'ZONE 2 – FLOOR 2'},{x:1305,y:20,w:165,h:640,l:'RISER'},
            {x:230,y:385,w:1065,h:425,l:'ZONE 1 – FLOOR 1'},{x:10,y:140,w:210,h:880,l:'ELECTRICAL RM'},{x:230,y:825,w:1240,h:195,l:'NAC 1 – FLOOR 1 CORRIDOR'},
            {x:1480,y:20,w:330,h:1000,l:'SPRINKLER RISER'}]};
 }
@@ -151,17 +152,17 @@ function buildDCLB(){
   const z1={addressable:true,zone:'Z1'},z2={addressable:true,zone:'Z2',flip:true},b={addressable:true,group:'B1',zone:'S101'};
   items.push(
     mkDev('SD-11','SD','Smoke Detector',430,60,b),mkDev('SD-12','SD','Smoke Detector',650,60,b),mkDev('HD-11','HD','Heat Detector',870,60,b),
-    mkIso('ISO-1',250,260),mkDev('PS-1','PS','Manual Pull Station',430,260,z1),mkDev('SD-1','SD','Smoke Detector',610,260,z1),
-    mkIso('ISO-2',790,260),mkTB('TB-1',970,260),mkIso('ISO-3',1150,260),
+    mkIso('ISO-1',245,260),mkDev('PS-1','PS','Manual Pull Station',423,260,z1),mkDev('PS-2','PS','Manual Pull Station',601,260,z1),mkDev('SD-1','SD','Smoke Detector',779,260,z1),
+    mkIso('ISO-2',957,260),mkTB('TB-1',1135,260),mkIso('ISO-3',1313,260),
     mkMM('MM-1','Waterflow Monitor Mod.',1150,480,z2,{eol:'MEOL1',sw:'FS-1',bt:'BT-1'}),mkDev('SD-2','SD','Smoke Detector',970,480,z2),
-    mkDev('HD-2','HD','Heat Detector',790,480,z2),mkRM('RM-1',610,480,z2),mkIso('ISO-4',250,480,true),
-    mkDH('DH-1',740,640),
+    mkDev('HD-2','HD','Heat Detector',790,480,z2),mkRM('RM-1',610,480,z2),mkDev('PS-3','PS','Manual Pull Station',430,480,z2),mkIso('ISO-4',250,480,true),
+    mkDev('PS-4','PS','Manual Pull Station',430,640,z2),mkDH('DH-1',740,640),
     mkDev('FS-1','FS','Waterflow Alarm Switch',900,650,{group:'mon',zone:'Z2',monOf:'MM-1',w:126}),mkBT('BT-1',1080,662,'MM-1','Z2'),mkEOL('MEOL1',1220,661,'MM-1 EOL Resistor','B'));
   addNAC(items,430,860,'B');
   return{key:'dclb',kind:'addr',cls:'A',nacCls:'B',taps:true,items,vw:1820,vh:1030,tree:{x:1495,y:330,fsLbl:'FS-1 + BT-1 → MM-1',vLbl:'(not monitored on this tab)'},blocks:[[1488,325,1800,650]],
     zoneNames:{Z1:'Zone 1 (West Corridor)',Z2:'Zone 2 (East Corridor)',S101:'Suite 101',TAP:'the T-tap junction (TB-1)'},interZone:2,
-    points:[{a:1,k:'PS',tag:'PS-1',loc:'Zone 1 – West Corridor'},{a:2,k:'SD',tag:'SD-1',loc:'Zone 1 – West Corridor'},
-            {a:21,k:'HD',tag:'HD-2',loc:'Zone 2 – East Corridor'},{a:22,k:'MM',tag:'MM-1',loc:'Zone 2 – Sprinkler Waterflow (FS-1)'},{a:23,k:'SD',tag:'SD-2',loc:'Zone 2 – East Corridor'},{a:24,k:'RM',tag:'RM-1',loc:'Zone 2 – Door Holder Release (DH-1)'},
+    points:[{a:1,k:'PS',tag:'PS-1',loc:'Zone 1 – West Corridor'},{a:2,k:'SD',tag:'SD-1',loc:'Zone 1 – West Corridor'},{a:3,k:'PS',tag:'PS-2',loc:'Zone 1 – West Corridor'},
+            {a:21,k:'HD',tag:'HD-2',loc:'Zone 2 – East Corridor'},{a:22,k:'MM',tag:'MM-1',loc:'Zone 2 – Sprinkler Waterflow (FS-1)'},{a:23,k:'SD',tag:'SD-2',loc:'Zone 2 – East Corridor'},{a:24,k:'RM',tag:'RM-1',loc:'Zone 2 – Door Holder Release (DH-1)'},{a:25,k:'PS',tag:'PS-3',loc:'Zone 2 – East Corridor'},{a:26,k:'PS',tag:'PS-4',loc:'Zone 2 – East Corridor'},
             {a:41,k:'SD',tag:'SD-11',loc:'Suite 101 (DCLB)'},{a:42,k:'SD',tag:'SD-12',loc:'Suite 101 (DCLB)'},{a:43,k:'HD',tag:'HD-11',loc:'Suite 101 (DCLB)'}],
     rooms:[{x:230,y:20,w:1240,h:165,l:'SUITE 101 – DCLB BRANCH'},{x:230,y:200,w:1240,h:170,l:'ZONE 1 – WEST CORRIDOR'},{x:230,y:385,w:1240,h:425,l:'ZONE 2 – EAST CORRIDOR'},
            {x:10,y:140,w:210,h:880,l:'ELECTRICAL RM'},{x:230,y:825,w:1240,h:195,l:'NAC 1 – CORRIDOR'},{x:1480,y:20,w:330,h:1000,l:'SPRINKLER RISER'}]};
@@ -347,6 +348,18 @@ function checkSw(sim,c,R,used){
   return ok}
 function checkMon(sim,mm,R,used){const M=mm.mon;
   return checkSw(sim,{name:`${mm.id} IDC`,cls:'B',start:{'+':mm.id+'.m+','-':mm.id+'.m-'},eol:M.eol,sw:M.sw,bt:M.bt,startLbl:mm.id},R,used)}
+/* ---------------- Manual pull station rule: every zone with smoke or heat detection needs at least 2 pull stations ---------------- */
+const MIN_PS=2;
+function pullCheck(sim,R,wiredIds){
+  const zoneOf=it=>it.zone,isDet=it=>it.type==='dev'&&(it.kind==='SD'||it.kind==='HD')&&!it.monOf&&it.group!=='spr';
+  const zones=[...new Set(sim.items.filter(isDet).map(zoneOf))].sort().filter(z=>z&&!/^S\d|^TAP$/.test(z)&&(!sim.zones||sim.zones.some(q=>q.z===z&&!q.sw)));
+  let ok=true;const good=[];
+  zones.forEach(z=>{const zn=sim.zoneNames[z]||z;const wired=wiredIds(z).filter(id=>sim.map[id].kind==='PS'&&sim.map[id].zone===z);
+    const need=sim.items.filter(i=>i.kind==='PS'&&i.zone===z).map(i=>i.id).filter(id=>!wired.includes(id));
+    if(wired.length<MIN_PS){ok=false;R.push(F(`${zn}: only ${wired.length} manual pull station${wired.length===1?'':'s'} wired${wired.length?' ('+wired.join(', ')+')':''}. Zones with detection require a minimum of ${MIN_PS} pull stations – wire ${need.join(', ')} into ${zn}.`))}
+    else good.push(`${zn} (${wired.join(', ')})`)});
+  if(ok&&good.length)R.push(OK(`Pull stations: every zone with smoke or heat detection has at least ${MIN_PS} manual pull stations – ${good.join('; ')}.`));
+  return ok}
 function checkConv(sim){
   const R=[];if(!sim.wires.length)return[F('No conductors have been installed yet.')];
   polarityCheck(sim,R);const used=new Set();let ok=true;
@@ -354,6 +367,7 @@ function checkConv(sim){
     ?checkSw(sim,{name:`Zone ${z.n} IDC (${z.label})`,cls:sim.cls,start:{'+':`P.${z.n}B+`,'-':`P.${z.n}B-`},ret:{'+':`P.${z.n}A+`,'-':`P.${z.n}A-`},eol:`EOL${z.n}`,sw:z.sw,bt:z.bt,startLbl:'FACP'},R,used)
     :checkLoop(sim,{name:`Zone ${z.n} IDC`,zone:z.z,cls:sim.cls,src:`${z.n}B`,ret:`${z.n}A`,eol:`EOL${z.n}`,members:z.members},R,used);if(!r)ok=false});
   if(!checkLoop(sim,NACDEF(sim),R,used))ok=false;
+  if(!pullCheck(sim,R,z=>{const zc=sim.zones.find(q=>q.z===z);return zc?walk(sim,`P.${zc.n}B+`).seq.map(x=>x.item):[]}))ok=false;
   strayCheck(sim,used,R);
   if(ok)R.push(OK('Each fire zone has its own initiating zone circuit, and the waterflow and valve tamper are on their own zones.'));
   if(sim.cls==='A'&&ok)R.push(INFO('Field note: Class A outgoing and return conductors must be physically separated — confirm the routing/separation requirements in CAN/ULC-S524 and the manufacturer’s instructions.'));
@@ -440,6 +454,7 @@ function checkAddr(sim){
     else R.push(F(`DCLC ${P} path is not continuous.`));
   }
   if(state.settings.floorIso&&complete===2)isoCheck(sim,seqs['+'],R);
+  pullCheck(sim,R,()=>walk(sim,'P.B+').seq.map(x=>x.item));
   if(sim.taps){
     const served={};
     sim.items.filter(i=>i.type==='tb').forEach(ti=>{
@@ -860,10 +875,10 @@ const EOLTXT=`<p class="small">All EOL resistors are <b>22.7 kΩ</b>.</p>`;
 const TREETXT=`<p class="small"><b>Sprinkler tree:</b> in Test mode, operating the flow switch (FS-1, or the flow switch on the tree drawing) starts water flowing through the riser and out the heads. Click the <b>control valve</b> on the tree to close it — closing the valve operates the valve tamper, stops any flow, and the flow switch <b>cannot</b> operate while the valve is closed.</p>`;
 const SPRB=cls=>`<p><b>Sprinkler tree</b> (riser room): the waterflow switch and the control-valve tamper switch each have their own zone, and each <b>box tamper</b> is wired <b>after the switch, in series${cls==='B'?' with the EOL resistor':''}</b> so removing the cover opens the circuit and causes a trouble.<br><b>Zone 3 – Waterflow (alarm):</b> ${cls==='B'?`ZONE 3 + → FS-1 IN+ → OUT+ → BT-1 → Zone 3 EOL; ZONE 3 ${MINUS} → FS-1 IN${MINUS} → OUT${MINUS} → Zone 3 EOL.`:`Z3 B+ → FS-1 IN+ → OUT+ → BT-1 → Z3 A+; Z3 B${MINUS} → FS-1 IN${MINUS} → OUT${MINUS} → Z3 A${MINUS}.`}<br><b>Zone 4 – Valve tamper (supervisory):</b> same arrangement with TS-1 and BT-2${cls==='B'?' to the Zone 4 EOL':', returning to Z4 A'}.</p>`;
 const TASKTEXT={
- cb:`<p><b>Conventional Class B – fire zones + sprinkler tree.</b> Each fire zone requires its own initiating zone circuit.</p><p><b>Zone 1:</b> ZONE 1 +/${MINUS} → PS-1 → SD-1 → <b>Zone 1 EOL</b>.<br><b>Zone 2:</b> ZONE 2 +/${MINUS} → HD-1 → SD-2 → <b>Zone 2 EOL</b>.<br>Loop IN → OUT of every device; no T-taps.</p>`+SPRB('B')+NACB+EOLTXT,
- ca:`<p><b>Conventional Class A – fire zones + sprinkler tree.</b> Each fire zone requires its own initiating zone circuit.</p><p><b>Zone 1:</b> Z1 B+/B${MINUS} → PS-1 → SD-1 → return to Z1 A+/A${MINUS}.<br><b>Zone 2:</b> Z2 B+/B${MINUS} → HD-1 → SD-2 → return to Z2 A+/A${MINUS}.<br>No field EOL resistors on Class A.</p>`+SPRB('A')+`<p><b>NAC 1 (Class A):</b> NAC B+/B${MINUS} → HS-1 → H-1 → return to NAC A+/A${MINUS}. No field EOL.</p>`,
- dclc:`<p><b>Addressable DCLC (Class A) – 2 zones, 4 isolators.</b> Isolators at the <b>start and end of each zone</b>: 2 at the panel (ISO-1 on SLC OUT, ISO-4 on SLC RET) and 2 between zones in the riser (ISO-2, ISO-3).</p><p>Route: SLC OUT → ISO-1 → Zone 1 (incl. RM-1, MM-1) → ISO-2 → ISO-3 → Zone 2 (incl. MM-2) → ISO-4 → SLC RET.</p>`+FLIPTXT+MONTXT('MM-1 waterflow FS-1 + BT-1; MM-2 valve tamper TS-1 + BT-2')+RLYTXT('Zone 1')+`<p><b>Addressing:</b> set every device and module to its address in the <b>Device Address List</b>.</p>`+NACB+EOLTXT,
- dclb:`<p><b>DCLC with a DCLB tap – 2 zones, 4 isolators.</b> 2 at the panel (ISO-1, ISO-4) and 2 between zones (ISO-2, ISO-3) — one on <b>each side of the T-tap TB-1</b>.</p><p>Route: SLC OUT → ISO-1 → Zone 1 → ISO-2 → TB-1 → ISO-3 → Zone 2 (incl. MM-1, RM-1) → ISO-4 → SLC RET. From TB-1 <b>TAP</b> run a Class B DCLB through Suite 101 (ends at last device, no EOL).</p>`+FLIPTXT+MONTXT('MM-1 waterflow FS-1 + BT-1')+RLYTXT('Zone 2')+`<p><b>Addressing:</b> follow the <b>Device Address List</b>.</p><p class="small">The control valve on this tab's sprinkler tree has no tamper switch wired, so closing it is not reported to the panel.</p>`+NACB+EOLTXT};
+ cb:`<p><b>Conventional Class B – fire zones + sprinkler tree.</b> Each fire zone requires its own initiating zone circuit.</p><p><b>Pull stations:</b> every fire zone with smoke or heat detection shall have a minimum of <b>2 manual pull stations</b> wired into that zone.</p><p><b>Zone 1:</b> ZONE 1 +/${MINUS} → PS-1 → PS-2 → SD-1 → <b>Zone 1 EOL</b>.<br><b>Zone 2:</b> ZONE 2 +/${MINUS} → PS-3 → PS-4 → HD-1 → SD-2 → <b>Zone 2 EOL</b>.<br>Loop IN → OUT of every device; no T-taps.</p>`+SPRB('B')+NACB+EOLTXT,
+ ca:`<p><b>Conventional Class A – fire zones + sprinkler tree.</b> Each fire zone requires its own initiating zone circuit.</p><p><b>Pull stations:</b> every fire zone with smoke or heat detection shall have a minimum of <b>2 manual pull stations</b> wired into that zone.</p><p><b>Zone 1:</b> Z1 B+/B${MINUS} → PS-1 → PS-2 → SD-1 → return to Z1 A+/A${MINUS}.<br><b>Zone 2:</b> Z2 B+/B${MINUS} → PS-3 → PS-4 → HD-1 → SD-2 → return to Z2 A+/A${MINUS}.<br>No field EOL resistors on Class A.</p>`+SPRB('A')+`<p><b>NAC 1 (Class A):</b> NAC B+/B${MINUS} → HS-1 → H-1 → return to NAC A+/A${MINUS}. No field EOL.</p>`,
+ dclc:`<p><b>Addressable DCLC (Class A) – 2 zones, 4 isolators.</b> Isolators at the <b>start and end of each zone</b>: 2 at the panel (ISO-1 on SLC OUT, ISO-4 on SLC RET) and 2 between zones in the riser (ISO-2, ISO-3).</p><p>Route: SLC OUT → ISO-1 → Zone 1 (incl. PS-1, PS-2, RM-1, MM-1) → ISO-2 → ISO-3 → Zone 2 (incl. PS-3, PS-4, MM-2) → ISO-4 → SLC RET.</p><p><b>Pull stations:</b> every fire zone with smoke or heat detection shall have a minimum of <b>2 manual pull stations</b> wired into that zone.</p>`+FLIPTXT+MONTXT('MM-1 waterflow FS-1 + BT-1; MM-2 valve tamper TS-1 + BT-2')+RLYTXT('Zone 1')+`<p><b>Addressing:</b> set every device and module to its address in the <b>Device Address List</b>.</p>`+NACB+EOLTXT,
+ dclb:`<p><b>DCLC with a DCLB tap – 2 zones, 4 isolators.</b> 2 at the panel (ISO-1, ISO-4) and 2 between zones (ISO-2, ISO-3) — one on <b>each side of the T-tap TB-1</b>.</p><p>Route: SLC OUT → ISO-1 → Zone 1 (incl. PS-1, PS-2) → ISO-2 → TB-1 → ISO-3 → Zone 2 (incl. PS-3, PS-4, MM-1, RM-1) → ISO-4 → SLC RET. From TB-1 <b>TAP</b> run a Class B DCLB through Suite 101 (ends at last device, no EOL).</p><p><b>Pull stations:</b> every fire zone with smoke or heat detection shall have a minimum of <b>2 manual pull stations</b> wired into that zone.</p>`+FLIPTXT+MONTXT('MM-1 waterflow FS-1 + BT-1')+RLYTXT('Zone 2')+`<p><b>Addressing:</b> follow the <b>Device Address List</b>.</p><p class="small">The control valve on this tab's sprinkler tree has no tamper switch wired, so closing it is not reported to the panel.</p>`+NACB+EOLTXT};
 function testHelp(sim){return(sim.kind==='conv'
  ?`<p class="small"><b>Conventional zones:</b> when a device alarms, it shorts (clamps) its zone — the panel latches the zone and <b>no other device on that zone can report</b> until System Reset. A device on a <b>different</b> zone still reports and will resound silenced signals. Zone 4 (valve tamper) reports a <b>supervisory</b> signal.</p><p class="small"><b>Box tamper:</b> in Test mode click a BT to remove / replace the cover — the zone opens and the panel shows a trouble.</p>`
  :`<p class="small"><b>Silence / resound:</b> after Signal Silence, a subsequent alarm from a zone already in alarm does <b>not</b> resound the signals. An alarm from a <b>different</b> zone resounds them.</p><p class="small"><b>Box tamper:</b> in Test mode click a BT to remove / replace the cover — the module IDC opens and the panel shows a trouble. <b>Door holder:</b> watch DH-1 release on any fire alarm.</p>`)
@@ -1081,7 +1096,7 @@ function renderHelp(){
   <ol><li><b>Wire mode:</b> click a terminal, then the destination terminal to install a conductor. Wires are routed automatically around devices and show a hump where they cross another conductor. Click a wire to remove it; <b>Tidy wires</b> re-routes everything.</li>
   <li><b>Zoom:</b> use − / Fit / + to enlarge the drawing; scroll to move around.</li>
   <li><b>Addresses:</b> on addressable tabs, click the <b>ADDR?</b> badge on each device/module and set the address shown in the Device Address List.</li>
-  <li><b>Check wiring:</b> verifies continuity, polarity, Class A/B termination, EOL placement, zoning, isolators, DCLB branch, sprinkler switches with box tampers, relay/door holder circuit, NAC and addressing.</li>
+  <li><b>Check wiring:</b> verifies continuity, polarity, a minimum of 2 pull stations in every zone with smoke or heat detection, Class A/B termination, EOL placement, zoning, isolators, DCLB branch, sprinkler switches with box tampers, relay/door holder circuit, NAC and addressing.</li>
   <li><b>Test mode:</b> operate devices and switches, remove box covers, open conductors and (addressable) apply shorts. Watch the FACP display, signals, isolators and door holder.</li>
   <li><b>Sprinkler tree:</b> every wiring tab has a sprinkler riser. In Test mode, operate FS-1 (or click the flow switch on the tree) to see water flow through the riser and out the heads. Click the control valve on the tree to close or open it. While the valve is closed the flow switch cannot operate, and closing the valve stops any flow in progress.</li>
   <li><b>Multimeter:</b> in Test mode, press <b>Multimeter</b> to bring out a handheld meter with draggable probes (see below).</li>
@@ -1213,7 +1228,7 @@ function applyTaskMin(){const m=!!state.settings.taskMin;$('#taskCard').classLis
 function snapshot(){const sims={};
   WTABS.forEach(k=>{const s=state.sims[k];if(!s||(!s.wires.length&&!Object.keys(s.addr).length))return;
     sims[k]={wires:s.wires.map(w=>({a:w.a,b:w.b,open:!!w.open})),addr:Object.assign({},s.addr),coverOff:[...s.coverOff],valveShut:!!s.valveShut}});
-  return{app:'fasim',version:10,saved:new Date().toISOString(),tab:state.tab,done:Object.assign({},state.done),settings:Object.assign({},state.settings),sims,
+  return{app:'fasim',version:11,saved:new Date().toISOString(),tab:state.tab,done:Object.assign({},state.done),settings:Object.assign({},state.settings),sims,
     prog:{mode:P.mode,ch:P.ch,blocks:P.blocks.map(r=>({out:r.out,gate:r.gate,delay:r.delay,ins:r.ins.map(x=>({id:x.id,not:!!x.not}))})),
       rungs:P.rungs.map(g=>({coil:g.coil,branches:g.branches.map(b=>b.map(c=>({id:c.id,nc:!!c.nc})))}))}}}
 function summary(o){const n=TASKS.filter(t=>o.done&&o.done[t[0]]).length;const w=WTABS.filter(k=>o.sims&&o.sims[k]).map(k=>`${TABS.find(t=>t[0]===k)[1]} (${o.sims[k].wires.length} wires)`);
